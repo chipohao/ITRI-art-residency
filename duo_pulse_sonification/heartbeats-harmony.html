@@ -8,14 +8,14 @@
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
-      background: #060402;
+      background: #000000;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
       min-height: 100vh;
       font-family: 'Courier New', monospace;
-      color: #c88200;
+      color: #999999;
     }
 
     h1 {
@@ -47,7 +47,7 @@
     .divider {
       width: 1px;
       height: 50px;
-      background: #2a1000;
+      background: #222222;
       margin-bottom: 8px;
     }
 
@@ -56,7 +56,7 @@
       appearance: none;
       width: 110px;
       height: 1px;
-      background: #3a1800;
+      background: #252525;
       cursor: pointer;
       margin-top: 7px;
     }
@@ -65,7 +65,7 @@
       width: 10px;
       height: 10px;
       border-radius: 50%;
-      background: #c88200;
+      background: #ffffff;
       cursor: pointer;
     }
 
@@ -114,15 +114,15 @@
 
     button {
       background: none;
-      border: 1px solid #2a1000;
-      color: #c88200;
+      border: 1px solid #2a2a2a;
+      color: #888888;
       font-family: 'Courier New', monospace;
       font-size: 9px;
       letter-spacing: 4px;
       text-transform: uppercase;
       padding: 5px 14px;
       cursor: pointer;
-      opacity: 0.35;
+      opacity: 0.5;
       transition: opacity 0.15s;
     }
     button:hover { opacity: 0.9; }
@@ -134,25 +134,25 @@
       opacity: 0.35;
     }
     #serial-status.connected { color: #88cc44; opacity: 0.7; }
-    #serial-status.calibrating { color: #ccaa22; opacity: 0.7; }
+    #serial-status.calibrating { color: #aaaaaa; opacity: 0.7; }
 
     select {
       -webkit-appearance: none;
       appearance: none;
       background: none;
-      border: 1px solid #2a1000;
-      color: #c88200;
+      border: 1px solid #2a2a2a;
+      color: #888888;
       font-family: 'Courier New', monospace;
       font-size: 9px;
       letter-spacing: 2px;
       padding: 5px 10px;
       cursor: pointer;
-      opacity: 0.45;
+      opacity: 0.5;
       transition: opacity 0.15s;
       max-width: 180px;
     }
     select:hover, select:focus { opacity: 0.9; outline: none; }
-    select option { background: #0a0602; color: #c88200; }
+    select option { background: #000000; color: #888888; }
   </style>
 </head>
 <body>
@@ -213,7 +213,7 @@
       bpmA:    72,
       bpmB:    80,
       phase:   Math.PI / 4,
-      fade:    0,     // 0 = infinite trail; 1–100 maps to half-life 20s–0.3s
+      fade:    0,
       fingerA: false,
       fingerB: false
     };
@@ -249,7 +249,6 @@
         document.getElementById('val-fade').textContent = '∞';
         document.getElementById('sub-fade').textContent = '\u00a0';
       } else {
-        // Map 1–100 → half-life 20s–0.3s (logarithmic feel via power map)
         const hl = Math.pow(20, 1 - state.fade / 100) * 0.3;
         document.getElementById('val-fade').textContent = hl < 1 ? hl.toFixed(1) : Math.round(hl);
         document.getElementById('sub-fade').textContent = 'sec';
@@ -260,9 +259,6 @@
     });
 
     // ── Web Serial API ────────────────────────────────────────────────────
-    // Chrome/Edge only (file:// is fine in recent Chrome).
-    // "Scan Port" → browser dialog → port appears in dropdown → auto-connects.
-    // Parses: /pulse/userA/bpm N, /pulse/userB/bpm N, /finger N
     let serialPort   = null;
     let serialReader = null;
     let availablePorts = [];
@@ -322,8 +318,7 @@
           while ((nl = buf.indexOf('\n')) !== -1) {
             const line = buf.slice(0, nl).trim();
             buf = buf.slice(nl + 1);
-            // /pulse/userA/bpm 72  |  /pulse/userB/finger 1
-            const m = line.match(/^\/pulse\/(userA|userB)\/(bpm|finger)\s+(\d+)/);
+            const m = line.match(/^\/pulse\/(userA|userB)\/(bpm|finger|beat)\s+(\d+)/);
             if (!m) continue;
             const [, user, type, valStr] = m;
             const val = parseInt(valStr, 10);
@@ -334,11 +329,15 @@
             } else if (type === 'finger') {
               if (user === 'userA') state.fingerA = val === 1;
               else                  state.fingerB = val === 1;
+            } else if (type === 'beat' && val === 1) {
+              // Trigger beat flash directly from real hardware beat
+              if (user === 'userA') state.triggerBeatA = true;
+              else                  state.triggerBeatB = true;
             }
           }
         }
       } catch (e) {
-        // cancelled or port closed — normal on disconnect
+        // cancelled or port closed
       } finally {
         try { serialReader.releaseLock(); } catch {}
         serialReader  = null;
@@ -354,7 +353,7 @@
       const p = serialPort;
       serialPort = null;
       try { await serialReader?.cancel(); } catch {}
-      await new Promise(r => setTimeout(r, 80));  // wait for releaseLock
+      await new Promise(r => setTimeout(r, 80));
       try { await p.close(); } catch {}
     }
 
@@ -371,13 +370,11 @@
       }
     }
 
-    // Dropdown: connect to selected port
     selPort.addEventListener('change', function () {
       if (this.value === '') { disconnectCurrent(); return; }
       connectToPort(availablePorts[+this.value]);
     });
 
-    // Scan button: browser dialog → add to dropdown → auto-connect
     document.getElementById('btn-scan').addEventListener('click', async () => {
       if (!navigator.serial) {
         alert('Web Serial API not supported.\nPlease use Chrome or Edge (desktop).');
@@ -392,7 +389,6 @@
       } catch (e) { /* user cancelled */ }
     });
 
-    // Load previously-granted ports on startup
     if (navigator.serial) {
       navigator.serial.getPorts().then(ports => {
         availablePorts = ports;
@@ -406,13 +402,16 @@
       });
     }
 
+    // Also expose beat triggers on state for serial-driven flash
+    state.triggerBeatA = false;
+    state.triggerBeatB = false;
+
     new p5(function(p) {
       const W = 720, H = 500;
       const LX = W / 2, LY = 200, LR = 158;
       const CA = { x: 92,  y: 400, r: 52 };
       const CB = { x: 628, y: 400, r: 52 };
 
-      // Ping-pong sand buffers for smooth float-precision fade
       let pg1, pg2;
       let t = 0;
       let angleA = -Math.PI / 2;
@@ -421,6 +420,8 @@
       let prevAngleB = angleB;
       let pulseA = { r: 0, a: 0 };
       let pulseB = { r: 0, a: 0 };
+      let flashA = 0;   // beat flash brightness, 0–255
+      let flashB = 0;
 
       p.setup = function() {
         const cv = p.createCanvas(W, H);
@@ -443,6 +444,7 @@
           angleB = prevAngleB = -Math.PI / 2;
           pulseA = { r: 0, a: 0 };
           pulseB = { r: 0, a: 0 };
+          flashA = 0; flashB = 0;
           needsClear = false;
         }
 
@@ -451,26 +453,22 @@
         const freqB = state.bpmB / 60;
 
         // ── Step 1: Fade ──────────────────────────────────────────────
-        // pg2 = pg1 * keepRatio   (float-precision via globalAlpha + drawImage)
         pg2.background(0);
 
         if (state.fade > 0) {
-          // half-life in seconds: logarithmic slider feel
-          const halfLife = Math.pow(20, 1 - state.fade / 100) * 0.3;
+          const halfLife  = Math.pow(20, 1 - state.fade / 100) * 0.3;
           const keepRatio = Math.pow(0.5, dt / halfLife);
           pg2.drawingContext.globalAlpha = keepRatio;
           pg2.drawingContext.drawImage(pg1.elt, 0, 0);
           pg2.drawingContext.globalAlpha = 1.0;
         } else {
-          // No fade — just copy
           pg2.drawingContext.drawImage(pg1.elt, 0, 0);
         }
 
-        // ── Step 2: Sand particles → pg2 ─────────────────────────────
+        // ── Step 2: Sand particles → pg2 (white) ──────────────────────
         const SUB = 10;
-        // Phosphor glow via shadowBlur
         pg2.drawingContext.shadowBlur  = 5;
-        pg2.drawingContext.shadowColor = 'rgba(210, 115, 8, 0.55)';
+        pg2.drawingContext.shadowColor = 'rgba(255, 255, 255, 0.22)';
 
         for (let s = 0; s < SUB; s++) {
           const ts = t + s * (dt / SUB);
@@ -481,9 +479,9 @@
             const ox = p.randomGaussian(0, 1.5);
             const oy = p.randomGaussian(0, 1.5);
             const d2 = ox * ox + oy * oy;
-            const al = p.map(d2, 0, 10, 155, 12, true);
+            const al = p.map(d2, 0, 10, 150, 10, true);
             pg2.noStroke();
-            pg2.fill(p.random(192, 226), p.random(100, 142), p.random(5, 20), al);
+            pg2.fill(255, 255, 255, al);
             pg2.circle(x + ox, y + oy, p.random(0.5, 1.8));
           }
         }
@@ -493,25 +491,31 @@
         // ── Step 3: Swap buffers ──────────────────────────────────────
         [pg1, pg2] = [pg2, pg1];
 
-        // Pen position before incrementing t
         const penX = LX + LR * Math.sin(freqA * t * p.TWO_PI);
         const penY = LY + LR * Math.sin(freqB * t * p.TWO_PI + state.phase);
         t += dt;
 
-        // ── Step 4: Rotating angles + heartbeat detect ────────────────
+        // ── Step 4: Beat detect (simulated from angle, or real from serial) ──
         prevAngleA = angleA;
         prevAngleB = angleB;
         angleA += freqA * dt * p.TWO_PI;
         angleB += freqB * dt * p.TWO_PI;
 
-        if ((angleA % p.TWO_PI) < (prevAngleA % p.TWO_PI)) {
-          pulseA.r = CA.r * 1.1; pulseA.a = 220;
-        }
-        if ((angleB % p.TWO_PI) < (prevAngleB % p.TWO_PI)) {
-          pulseB.r = CB.r * 1.1; pulseB.a = 220;
-        }
-        pulseA.r += dt * 55;  pulseA.a = Math.max(0, pulseA.a - dt * 320);
-        pulseB.r += dt * 55;  pulseB.a = Math.max(0, pulseB.a - dt * 320);
+        const beatA = (angleA % p.TWO_PI) < (prevAngleA % p.TWO_PI) || state.triggerBeatA;
+        const beatB = (angleB % p.TWO_PI) < (prevAngleB % p.TWO_PI) || state.triggerBeatB;
+        state.triggerBeatA = false;
+        state.triggerBeatB = false;
+
+        if (beatA) { pulseA.r = CA.r * 1.1; pulseA.a = 200; flashA = 255; }
+        if (beatB) { pulseB.r = CB.r * 1.1; pulseB.a = 200; flashB = 255; }
+
+        // Expanding ring decay
+        pulseA.r += dt * 55;  pulseA.a = Math.max(0, pulseA.a - dt * 280);
+        pulseB.r += dt * 55;  pulseB.a = Math.max(0, pulseB.a - dt * 280);
+
+        // Flash decay (~0.45s)
+        flashA = Math.max(0, flashA - dt * 560);
+        flashB = Math.max(0, flashB - dt * 560);
 
         const dotAX = CA.x + CA.r * Math.cos(angleA);
         const dotAY = CA.y + CA.r * Math.sin(angleA);
@@ -523,7 +527,7 @@
 
         // Connection lines (dashed)
         p.drawingContext.setLineDash([3, 6]);
-        p.stroke(200, 115, 15, 55);
+        p.stroke(255, 255, 255, 40);
         p.strokeWeight(1);
         p.noFill();
         p.line(dotAX, dotAY, penX, penY);
@@ -531,65 +535,77 @@
         p.drawingContext.setLineDash([]);
 
         // ── Circle A ─────────────────────────
+        // Beat flash: filled white circle fades quickly
+        if (flashA > 0) {
+          p.noStroke();
+          p.fill(255, 255, 255, flashA * 0.65);
+          p.circle(CA.x, CA.y, CA.r * 2);
+        }
+
         p.noFill();
-        p.stroke(160, 88, 8, 50);
+        p.stroke(255, 255, 255, 50);
         p.strokeWeight(1);
         p.circle(CA.x, CA.y, CA.r * 2);
 
         if (pulseA.a > 0) {
           p.noFill();
-          p.stroke(220, 140, 20, pulseA.a);
+          p.stroke(255, 255, 255, pulseA.a);
           p.strokeWeight(1);
           p.circle(CA.x, CA.y, pulseA.r * 2);
         }
 
-        p.stroke(160, 88, 8, 40);
+        p.stroke(255, 255, 255, 35);
         p.strokeWeight(0.8);
         p.line(CA.x, CA.y, dotAX, dotAY);
 
-        p.noStroke(); p.fill(160, 88, 8, 80);
+        p.noStroke(); p.fill(255, 255, 255, 70);
         p.circle(CA.x, CA.y, 4);
 
-        p.noStroke(); p.fill(225, 145, 22, 210);
+        p.noStroke(); p.fill(255, 255, 255, 210);
         p.circle(dotAX, dotAY, 8);
 
-        p.fill(160, 88, 8, 75);
+        p.fill(255, 255, 255, 65);
         p.noStroke();
         p.textFont('Courier New');
         p.textSize(8);
         p.textAlign(p.CENTER);
         p.text('HEART  A', CA.x, CA.y + CA.r + 15);
         p.text(state.bpmA + ' BPM', CA.x, CA.y + CA.r + 26);
-        // Finger indicator: dim dot = no finger, green = finger on
+        // Finger indicator: dim = no finger, bright = finger on
         p.noStroke();
-        p.fill(state.fingerA ? 70 : 90, state.fingerA ? 190 : 70, state.fingerA ? 50 : 15,
-               state.fingerA ? 210 : 80);
+        p.fill(255, 255, 255, state.fingerA ? 220 : 30);
         p.circle(CA.x, CA.y + CA.r + 38, 4);
 
         // ── Circle B ─────────────────────────
+        if (flashB > 0) {
+          p.noStroke();
+          p.fill(255, 255, 255, flashB * 0.65);
+          p.circle(CB.x, CB.y, CB.r * 2);
+        }
+
         p.noFill();
-        p.stroke(160, 88, 8, 50);
+        p.stroke(255, 255, 255, 50);
         p.strokeWeight(1);
         p.circle(CB.x, CB.y, CB.r * 2);
 
         if (pulseB.a > 0) {
           p.noFill();
-          p.stroke(220, 140, 20, pulseB.a);
+          p.stroke(255, 255, 255, pulseB.a);
           p.strokeWeight(1);
           p.circle(CB.x, CB.y, pulseB.r * 2);
         }
 
-        p.stroke(160, 88, 8, 40);
+        p.stroke(255, 255, 255, 35);
         p.strokeWeight(0.8);
         p.line(CB.x, CB.y, dotBX, dotBY);
 
-        p.noStroke(); p.fill(160, 88, 8, 80);
+        p.noStroke(); p.fill(255, 255, 255, 70);
         p.circle(CB.x, CB.y, 4);
 
-        p.noStroke(); p.fill(225, 145, 22, 210);
+        p.noStroke(); p.fill(255, 255, 255, 210);
         p.circle(dotBX, dotBY, 8);
 
-        p.fill(160, 88, 8, 75);
+        p.fill(255, 255, 255, 65);
         p.noStroke();
         p.textFont('Courier New');
         p.textSize(8);
@@ -597,12 +613,11 @@
         p.text('HEART  B', CB.x, CB.y + CB.r + 15);
         p.text(state.bpmB + ' BPM', CB.x, CB.y + CB.r + 26);
         p.noStroke();
-        p.fill(state.fingerB ? 70 : 90, state.fingerB ? 190 : 70, state.fingerB ? 50 : 15,
-               state.fingerB ? 210 : 80);
+        p.fill(255, 255, 255, state.fingerB ? 220 : 30);
         p.circle(CB.x, CB.y + CB.r + 38, 4);
 
         // ── Pen dot ───────────────────────────
-        p.noStroke(); p.fill(255, 210, 90, 200);
+        p.noStroke(); p.fill(255, 255, 255, 220);
         p.circle(penX, penY, 5);
       };
     });
