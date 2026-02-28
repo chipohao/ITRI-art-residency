@@ -135,6 +135,24 @@
     }
     #serial-status.connected { color: #88cc44; opacity: 0.7; }
     #serial-status.calibrating { color: #ccaa22; opacity: 0.7; }
+
+    select {
+      -webkit-appearance: none;
+      appearance: none;
+      background: none;
+      border: 1px solid #2a1000;
+      color: #c88200;
+      font-family: 'Courier New', monospace;
+      font-size: 9px;
+      letter-spacing: 2px;
+      padding: 5px 10px;
+      cursor: pointer;
+      opacity: 0.45;
+      transition: opacity 0.15s;
+      max-width: 180px;
+    }
+    select:hover, select:focus { opacity: 0.9; outline: none; }
+    select option { background: #0a0602; color: #c88200; }
   </style>
 </head>
 <body>
@@ -184,17 +202,20 @@
 
   <div id="footer">
     <div id="ratio">ratio —</div>
-    <button id="btn-serial">Serial</button>
+    <button id="btn-scan">Scan Port</button>
+    <select id="sel-port"><option value="">— no port —</option></select>
     <div id="serial-status">disconnected</div>
     <button id="btn-clear">Clear</button>
   </div>
 
   <script>
     const state = {
-      bpmA:  72,
-      bpmB:  80,
-      phase: Math.PI / 4,
-      fade:  0   // 0 = infinite trail; 1–100 maps to half-life 20s–0.3s
+      bpmA:    72,
+      bpmB:    80,
+      phase:   Math.PI / 4,
+      fade:    0,     // 0 = infinite trail; 1–100 maps to half-life 20s–0.3s
+      fingerA: false,
+      fingerB: false
     };
     let needsClear = false;
 
@@ -239,92 +260,151 @@
     });
 
     // ── Web Serial API ────────────────────────────────────────────────────
-    // Chrome/Edge only. Click "Serial" to connect ESP32 at 115200 baud.
-    // Parses lines like "/pulse/userA/bpm 72" and updates BPM sliders live.
+    // Chrome/Edge only (file:// is fine in recent Chrome).
+    // "Scan Port" → browser dialog → port appears in dropdown → auto-connects.
+    // Parses: /pulse/userA/bpm N, /pulse/userB/bpm N, /finger N
     let serialPort   = null;
     let serialReader = null;
-    const statusEl   = document.getElementById('serial-status');
+    let availablePorts = [];
+    const statusEl = document.getElementById('serial-status');
+    const selPort  = document.getElementById('sel-port');
 
     function setSerialStatus(cls, text) {
       statusEl.className   = cls;
       statusEl.textContent = text;
     }
 
+    function portLabel(port, idx) {
+      const info = port.getInfo();
+      if (info.usbVendorId) {
+        const vid = info.usbVendorId.toString(16).padStart(4, '0');
+        const pid = info.usbProductId.toString(16).padStart(4, '0');
+        return `port ${idx + 1}  [${vid}:${pid}]`;
+      }
+      return `port ${idx + 1}`;
+    }
+
+    function renderPortList() {
+      while (selPort.options.length > 1) selPort.remove(1);
+      availablePorts.forEach((p, i) => selPort.add(new Option(portLabel(p, i), i)));
+    }
+
     function applyBpmA(bpm) {
       bpm = Math.max(40, Math.min(160, bpm));
       state.bpmA = bpm;
-      document.getElementById('sl-a').value         = bpm;
-      document.getElementById('val-a').textContent  = bpm;
-      document.getElementById('hz-a').textContent   = (bpm / 60).toFixed(2) + ' Hz';
+      document.getElementById('sl-a').value        = bpm;
+      document.getElementById('val-a').textContent = bpm;
+      document.getElementById('hz-a').textContent  = (bpm / 60).toFixed(2) + ' Hz';
       updateRatio();
     }
 
     function applyBpmB(bpm) {
       bpm = Math.max(40, Math.min(160, bpm));
       state.bpmB = bpm;
-      document.getElementById('sl-b').value         = bpm;
-      document.getElementById('val-b').textContent  = bpm;
-      document.getElementById('hz-b').textContent   = (bpm / 60).toFixed(2) + ' Hz';
+      document.getElementById('sl-b').value        = bpm;
+      document.getElementById('val-b').textContent = bpm;
+      document.getElementById('hz-b').textContent  = (bpm / 60).toFixed(2) + ' Hz';
       updateRatio();
     }
 
     async function readSerial() {
       setSerialStatus('calibrating', 'calibrating...');
       let buf = '';
-      const decoder     = new TextDecoderStream();
-      serialPort.readable.pipeTo(decoder.writable);
-      serialReader = decoder.readable.getReader();
+      const td = new TextDecoder();
+      serialReader = serialPort.readable.getReader();
 
       try {
         while (true) {
           const { value, done } = await serialReader.read();
           if (done) break;
-          buf += value;
+          buf += td.decode(value, { stream: true });
           let nl;
           while ((nl = buf.indexOf('\n')) !== -1) {
             const line = buf.slice(0, nl).trim();
             buf = buf.slice(nl + 1);
-            // Match "/pulse/userA/bpm 72"  or  "/pulse/userB/bpm 88"
-            const m = line.match(/^\/pulse\/(userA|userB)\/bpm\s+(\d+)/);
-            if (m) {
-              const bpm = parseInt(m[2], 10);
-              if (m[1] === 'userA') applyBpmA(bpm);
-              else                  applyBpmB(bpm);
+            // /pulse/userA/bpm 72  |  /pulse/userB/finger 1
+            const m = line.match(/^\/pulse\/(userA|userB)\/(bpm|finger)\s+(\d+)/);
+            if (!m) continue;
+            const [, user, type, valStr] = m;
+            const val = parseInt(valStr, 10);
+            if (type === 'bpm' && val > 30) {
+              if (user === 'userA') applyBpmA(val);
+              else                  applyBpmB(val);
               setSerialStatus('connected', 'connected');
+            } else if (type === 'finger') {
+              if (user === 'userA') state.fingerA = val === 1;
+              else                  state.fingerB = val === 1;
             }
           }
         }
       } catch (e) {
-        // port closed or reader cancelled — normal on disconnect
+        // cancelled or port closed — normal on disconnect
       } finally {
         try { serialReader.releaseLock(); } catch {}
+        serialReader  = null;
+        state.fingerA = false;
+        state.fingerB = false;
         setSerialStatus('', 'disconnected');
-        serialPort   = null;
-        serialReader = null;
+        selPort.value = '';
       }
     }
 
-    document.getElementById('btn-serial').addEventListener('click', async () => {
-      // If already connected, disconnect
-      if (serialPort) {
-        try { await serialReader?.cancel(); } catch {}
-        try { await serialPort.close();    } catch {}
-        return;
+    async function disconnectCurrent() {
+      if (!serialPort) return;
+      const p = serialPort;
+      serialPort = null;
+      try { await serialReader?.cancel(); } catch {}
+      await new Promise(r => setTimeout(r, 80));  // wait for releaseLock
+      try { await p.close(); } catch {}
+    }
+
+    async function connectToPort(port) {
+      await disconnectCurrent();
+      serialPort = port;
+      try {
+        await serialPort.open({ baudRate: 115200 });
+        readSerial();
+      } catch (e) {
+        serialPort = null;
+        setSerialStatus('', 'open failed');
+        selPort.value = '';
       }
+    }
+
+    // Dropdown: connect to selected port
+    selPort.addEventListener('change', function () {
+      if (this.value === '') { disconnectCurrent(); return; }
+      connectToPort(availablePorts[+this.value]);
+    });
+
+    // Scan button: browser dialog → add to dropdown → auto-connect
+    document.getElementById('btn-scan').addEventListener('click', async () => {
       if (!navigator.serial) {
         alert('Web Serial API not supported.\nPlease use Chrome or Edge (desktop).');
         return;
       }
       try {
-        serialPort = await navigator.serial.requestPort();
-        await serialPort.open({ baudRate: 115200 });
-        readSerial();   // runs asynchronously in the background
-      } catch (e) {
-        // user cancelled the port picker, or open failed
-        serialPort = null;
-        setSerialStatus('', 'disconnected');
-      }
+        const newPort = await navigator.serial.requestPort();
+        if (!availablePorts.includes(newPort)) availablePorts.push(newPort);
+        renderPortList();
+        selPort.value = availablePorts.indexOf(newPort);
+        connectToPort(newPort);
+      } catch (e) { /* user cancelled */ }
     });
+
+    // Load previously-granted ports on startup
+    if (navigator.serial) {
+      navigator.serial.getPorts().then(ports => {
+        availablePorts = ports;
+        renderPortList();
+      });
+      navigator.serial.addEventListener('disconnect', () => {
+        navigator.serial.getPorts().then(ports => {
+          availablePorts = ports;
+          renderPortList();
+        });
+      });
+    }
 
     new p5(function(p) {
       const W = 720, H = 500;
@@ -480,6 +560,11 @@
         p.textAlign(p.CENTER);
         p.text('HEART  A', CA.x, CA.y + CA.r + 15);
         p.text(state.bpmA + ' BPM', CA.x, CA.y + CA.r + 26);
+        // Finger indicator: dim dot = no finger, green = finger on
+        p.noStroke();
+        p.fill(state.fingerA ? 70 : 90, state.fingerA ? 190 : 70, state.fingerA ? 50 : 15,
+               state.fingerA ? 210 : 80);
+        p.circle(CA.x, CA.y + CA.r + 38, 4);
 
         // ── Circle B ─────────────────────────
         p.noFill();
@@ -511,6 +596,10 @@
         p.textAlign(p.CENTER);
         p.text('HEART  B', CB.x, CB.y + CB.r + 15);
         p.text(state.bpmB + ' BPM', CB.x, CB.y + CB.r + 26);
+        p.noStroke();
+        p.fill(state.fingerB ? 70 : 90, state.fingerB ? 190 : 70, state.fingerB ? 50 : 15,
+               state.fingerB ? 210 : 80);
+        p.circle(CB.x, CB.y + CB.r + 38, 4);
 
         // ── Pen dot ───────────────────────────
         p.noStroke(); p.fill(255, 210, 90, 200);
