@@ -87,20 +87,35 @@ Same addresses for `userB`.
 
 ### Max/MSP Reception (Max 接收方式)
 
+**注意**：`[route]` 比對的是整個 selector，`/pulse/userA/bpm 72` 的 selector 是 `/pulse/userA/bpm`，不是 `/pulse/userA`，所以無法做兩層分拆。
+
+**方法 A：直接 route 完整路徑（建議）**
+
 ```
 [serial c 115200]
    |
-[sel 13 10]
+[sel 10]                          ← 偵測換行
    |
-[zl group 1000]
+[zl group 500]                    ← 收集成整數 list
    |
-[itoa]
+[itoa]                            ← 轉 ASCII symbol
    |
+[fromsymbol]                      ← 轉成 Max message
+   |
+[route /pulse/userA/raw /pulse/userA/beat /pulse/userA/bpm /pulse/userA/finger
+       /pulse/userB/raw /pulse/userB/beat /pulse/userB/bpm /pulse/userB/finger]
+   |        |       |          |            |        |       |          |
+raw_A  beat_A  bpm_A  finger_A          raw_B  beat_B  bpm_B  finger_B
+```
+
+**方法 B：OSCroute（需安裝 CNMAT 套件，支援前綴比對）**
+
+```
 [fromsymbol]
    |
-[route /pulse/userA /pulse/userB]
-   | (User A)                              | (User B)
-[route raw finger beat bpm thresh]    [route raw finger beat bpm thresh]
+[OSCroute /pulse/userA /pulse/userB]
+       |                      |
+[OSCroute /raw /beat /bpm /finger]
 ```
 
 ### Web Serial (Chrome / Edge 直接讀取)
