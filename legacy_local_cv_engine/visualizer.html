@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hand Tracking Visualizer</title>
+    <style>
+        :root {
+            --bg-color: #0a0a0a;
+            --grid-color: #1a1a1a;
+            --primary-glow: rgba(0, 255, 255, 0.6);
+            --secondary-glow: rgba(255, 0, 255, 0.6);
+            --text-color: #888;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            font-family: 'Inter', sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            cursor: none;
+            /* Hide default cursor */
+        }
+
+        canvas {
+            display: block;
+        }
+
+        #info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: var(--text-color);
+            font-size: 12px;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .value {
+            color: #fff;
+            font-family: monospace;
+            margin-left: 8px;
+        }
+
+        #debug-btn {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            background: #333;
+            color: #fff;
+            border: 1px solid #555;
+            cursor: pointer;
+            z-index: 100;
+        }
+
+        #debug-btn:hover {
+            background: #444;
+        }
+
+        #controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid #333;
+            color: #ccc;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            border-radius: 8px;
+        }
+
+        #controls label {
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        #video-bg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: fill;
+            /* Use fill to match normalized coordinates perfectly */
+            transform: scaleX(-1);
+            /* Mirror webcam */
+            z-index: -1;
+            opacity: 0.5;
+        }
+    </style>
+</head>
+
+<body>
+
+    <video id="video-bg" autoplay playsinline></video>
+
+    <div id="info">
+        <div>POS X: <span id="val-x" class="value">0.00</span></div>
+        <div>POS Y: <span id="val-y" class="value">0.00</span></div>
+        <div>VEL X: <span id="val-vx" class="value">0.00</span></div>
+        <div>VEL Y: <span id="val-vy" class="value">0.00</span></div>
+        <div style="margin-top:10px; color: #666; font-size: 10px;">Python now sends 0.0-1.0 coords. Ensure Max uses
+            float unpack.</div>
+    </div>
+
+    <div id="controls">
+        <label>
+            Webcam Opacity
+            <input type="range" id="opacity-slider" min="0" max="1" step="0.1" value="0.5">
+        </label>
+        <label>
+            Flip Y-Axis
+            <input type="checkbox" id="flip-check" checked>
+        </label>
+    </div>
+
+    <button id="debug-btn">Test Animation</button>
+
+    <canvas id="canvas"></canvas>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const video = document.getElementById('video-bg');
+
+        let width, height;
+        let flipY = true;
+
+        // --- Webcam Setup ---
+        navigator.mediaDevices.getUserMedia({ video: true })
+            .then(stream => {
+                video.srcObject = stream;
+            })
+            .catch(err => {
+                console.error("Webcam error:", err);
+            });
+
+        // --- UI Controls ---
+        const opacitySlider = document.getElementById('opacity-slider');
+        opacitySlider.addEventListener('input', (e) => {
+            video.style.opacity = e.target.value;
+        });
+
+        const flipCheck = document.getElementById('flip-check');
+
+        function updateVideoFlip() {
+            // Default is scaleX(-1) for mirror. If flipY is true, also scaleY(-1)
+            video.style.transform = `scaleX(-1) ${flipY ? 'scaleY(-1)' : ''}`;
+        }
+
+        // Initialize flipY from the checkbox (which is checked by default)
+        flipY = flipCheck.checked;
+        updateVideoFlip();
+
+        flipCheck.addEventListener('change', (e) => {
+            flipY = e.target.checked;
+            updateVideoFlip();
+        });
+
+        // --- Debug Button ---
+        document.getElementById('debug-btn').addEventListener('click', () => {
+            // Simulate random normalized movement (0.0 - 1.0)
+            const randX = Math.random();
+            const randY = Math.random();
+            const randVx = (Math.random() - 0.5) * 5;
+            const randVy = (Math.random() - 0.5) * 5;
+            window.setHandData(randX, randY, randVx, randVy);
+            console.log("Debug test Triggered");
+        });
+
+        // --- Visualizer Logic ---
+        const state = {
+            x: 0,
+            y: 0,
+            vx: 0,
+            vy: 0,
+            targetX: 0,
+            targetY: 0,
+            trail: []
+        };
+        const TRAIL_LENGTH = 30;
+        const GRID_SIZE = 50;
+
+        function resize() {
+            width = window.innerWidth;
+            height = window.innerHeight;
+            canvas.width = width;
+            canvas.height = height;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // --- Max Interface ---
+        // Expects NORMALIZED coordinates (0.0 to 1.0)
+        window.setHandData = function (x, y, vx, vy) {
+            // x, y are now 0.0 ~ 1.0
+            const normX = x;
+            const normY = y;
+
+            state.targetX = normX * width;
+
+            if (flipY) {
+                // Invert Y axis: 0.2 (top) becomes 0.8 (bottom)
+                state.targetY = (1.0 - normY) * height;
+            } else {
+                state.targetY = normY * height;
+            }
+
+            state.vx = vx;
+            state.vy = vy;
+
+            // GUI Update (Clamp to 2 decimals)
+            document.getElementById('val-x').textContent = x.toFixed(2);
+            document.getElementById('val-y').textContent = y.toFixed(2);
+            document.getElementById('val-vx').textContent = vx.toFixed(2);
+            document.getElementById('val-vy').textContent = vy.toFixed(2);
+        };
+
+        if (window.max && window.max.bindInlet) {
+            window.max.bindInlet('setHandData', function (x, y, vx, vy) {
+                window.setHandData(x, y, vx, vy);
+            });
+        }
+
+        function drawGrid() {
+            ctx.strokeStyle = '#1a1a1a';
+            ctx.lineWidth = 1;
+            for (let x = 0; x < width; x += GRID_SIZE) {
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke();
+            }
+            for (let y = 0; y < height; y += GRID_SIZE) {
+                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke();
+            }
+        }
+
+        function animate() {
+            // Smooth interpolation - Increased to 0.8 for faster response (less lag)
+            state.x += (state.targetX - state.x) * 0.8;
+            state.y += (state.targetY - state.y) * 0.8;
+
+            // Trail
+            state.trail.push({ x: state.x, y: state.y });
+            if (state.trail.length > TRAIL_LENGTH) {
+                state.trail.shift();
+            }
+
+            // Clear (Transparent)
+            ctx.clearRect(0, 0, width, height);
+
+            drawGrid();
+
+            // Draw Trail
+            if (state.trail.length > 1) {
+                ctx.beginPath();
+                ctx.moveTo(state.trail[0].x, state.trail[0].y);
+                for (let i = 1; i < state.trail.length; i++) {
+                    const p = state.trail[i];
+                    ctx.lineTo(p.x, p.y);
+                }
+                const gradient = ctx.createLinearGradient(
+                    state.trail[0].x, state.trail[0].y,
+                    state.trail[state.trail.length - 1].x, state.trail[state.trail.length - 1].y
+                );
+                gradient.addColorStop(0, 'rgba(0, 255, 255, 0)');
+                gradient.addColorStop(1, 'rgba(0, 255, 255, 0.8)');
+                ctx.strokeStyle = gradient;
+                ctx.lineWidth = 4;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.stroke();
+            }
+
+            // Draw Velocity Vector
+            const velMag = Math.hypot(state.vx, state.vy);
+            if (velMag > 0.01) {
+                const vecScale = 20.0; // Adjusted for normalized velocity
+                ctx.beginPath();
+                ctx.moveTo(state.x, state.y);
+
+                // If flipped, invert VY visually
+                const vyVisual = flipY ? -state.vy : state.vy;
+
+                ctx.lineTo(state.x + state.vx * vecScale, state.y + vyVisual * vecScale);
+                ctx.strokeStyle = 'rgba(255, 0, 255, 0.8)';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+
+            // Draw Cursor with Halo
+            // Outer Halo
+            ctx.shadowBlur = 30;
+            ctx.shadowColor = 'rgba(0, 255, 255, 0.8)';
+            ctx.beginPath();
+            ctx.arc(state.x, state.y, 15, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(0, 255, 255, 0.3)';
+            ctx.fill();
+
+            // Inner Core
+            ctx.shadowBlur = 10;
+            ctx.shadowColor = '#fff';
+            ctx.beginPath();
+            ctx.arc(state.x, state.y, 6, 0, Math.PI * 2);
+            ctx.fillStyle = '#fff';
+            ctx.fill();
+
+            ctx.shadowBlur = 0;
+
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+    </script>
+</body>
+
+</html>

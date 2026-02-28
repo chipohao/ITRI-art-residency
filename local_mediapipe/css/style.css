@@ -1,0 +1,91 @@
+:root {
+    --bg-color: #0a0a0a;
+    --text-color: #888;
+}
+
+body {
+    margin: 0;
+    overflow: hidden;
+    background-color: var(--bg-color);
+    font-family: 'Inter', sans-serif;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    cursor: none;
+}
+
+canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    z-index: 10;
+}
+
+/* Video hidden, we process frames but don't show raw video element to avoid alignment headaches */
+/* Actually, we use the video for the stream and can draw it to canvas or show it. 
+   To ensure perfect alignment, easiest is to draw video to canvas or position video absolutely.
+   Let's position video and canvas identically. */
+#video-bg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: fill;
+    /* Use fill to match canvas coordinates */
+    transform: scaleX(-1);
+    /* Mirror webcam */
+    z-index: 0;
+    opacity: 0.5;
+}
+
+#info {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    color: var(--text-color);
+    font-size: 12px;
+    pointer-events: none;
+    z-index: 20;
+}
+
+.value {
+    color: #fff;
+    font-family: monospace;
+    margin-left: 8px;
+}
+
+#controls {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    padding: 15px;
+    background: rgba(0, 0, 0, 0.7);
+    border: 1px solid #333;
+    color: #ccc;
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    border-radius: 8px;
+}
+
+#controls label {
+    font-size: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 200px;
+}
+
+#loading {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #0ff;
+    font-size: 20px;
+    z-index: 50;
+    font-family: monospace;
+}

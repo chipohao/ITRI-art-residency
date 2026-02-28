@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hand Tracking Visualizer (Pure JS)</title>
+    <!-- MediaPipe Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"
+        crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+    <div id="loading">Loading MediaPipe...</div>
+
+    <video id="video-bg" playsinline></video>
+    <canvas id="canvas"></canvas>
+
+    <div id="info">
+        <div>POS X: <span id="val-x" class="value">0.00</span></div>
+        <div>POS Y: <span id="val-y" class="value">0.00</span></div>
+        <div>VEL X: <span id="val-vx" class="value">0.00</span></div>
+        <div>VEL Y: <span id="val-vy" class="value">0.00</span></div>
+        <div>ALIVE: <span id="val-hand" class="value">0</span></div>
+        <div style="margin-top:10px; color: #666; font-size: 10px;">Pure JS Version</div>
+    </div>
+
+    <div id="controls">
+        <label>
+            Camera Source
+            <select id="camera-select" style="width: 100%; max-width: 200px; color: #000;"></select>
+        </label>
+        <label>
+            Webcam Opacity
+            <input type="range" id="opacity-slider" min="0" max="1" step="0.1" value="0.5">
+        </label>
+        <label>
+            Flip Y-Axis
+            <input type="checkbox" id="flip-check" checked>
+        </label>
+    </div>
+
+    <script src="js/visualizer.js"></script>
+</body>
+
+</html>
