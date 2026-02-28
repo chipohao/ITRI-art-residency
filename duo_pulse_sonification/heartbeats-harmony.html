@@ -459,10 +459,10 @@
           const halfLife  = Math.pow(20, 1 - state.fade / 100) * 0.3;
           const keepRatio = Math.pow(0.5, dt / halfLife);
           pg2.drawingContext.globalAlpha = keepRatio;
-          pg2.drawingContext.drawImage(pg1.elt, 0, 0);
+          pg2.drawingContext.drawImage(pg1.elt, 0, 0, W, H);  // W,H fix retina (pixelDensity=2)
           pg2.drawingContext.globalAlpha = 1.0;
         } else {
-          pg2.drawingContext.drawImage(pg1.elt, 0, 0);
+          pg2.drawingContext.drawImage(pg1.elt, 0, 0, W, H);
         }
 
         // ── Step 2: Sand particles → pg2 (white) ──────────────────────
