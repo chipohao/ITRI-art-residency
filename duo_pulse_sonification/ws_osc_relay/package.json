@@ -1,0 +1,12 @@
+{
+  "name": "ws-osc-relay",
+  "version": "1.0.0",
+  "description": "WebSocket → OSC UDP relay for heartbeats-harmony pen dot coordinates",
+  "main": "ws_osc_relay.js",
+  "scripts": {
+    "start": "node ws_osc_relay.js"
+  },
+  "dependencies": {
+    "ws": "^8.0.0"
+  }
+}

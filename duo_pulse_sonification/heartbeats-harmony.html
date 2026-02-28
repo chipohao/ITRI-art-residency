@@ -271,16 +271,29 @@
     // ── Web Serial API ────────────────────────────────────────────────────
     let serialPort   = null;
     let serialReader = null;
-    let serialWriter = null;
     let availablePorts = [];
     const statusEl  = document.getElementById('serial-status');
     const selPort   = document.getElementById('sel-port');
     const coordsEl  = document.getElementById('pen-coords');
-    const te        = new TextEncoder();
+
+    // ── WebSocket → OSC relay (ws_osc_relay.js) ───────────────────────────
+    let wsRelay = null;
+
+    function connectWsRelay() {
+      try {
+        wsRelay = new WebSocket('ws://localhost:8080');
+        wsRelay.addEventListener('open',  () => console.log('[ws-relay] connected'));
+        wsRelay.addEventListener('close', () => {
+          wsRelay = null;
+          setTimeout(connectWsRelay, 3000);  // auto-retry
+        });
+        wsRelay.addEventListener('error', () => {});
+      } catch(e) {}
+    }
+    connectWsRelay();
 
     function penWrite(text) {
-      if (!serialWriter) return;
-      serialWriter.write(te.encode(text)).catch(() => {});
+      if (wsRelay && wsRelay.readyState === WebSocket.OPEN) wsRelay.send(text);
     }
 
     function setSerialStatus(cls, text) {
@@ -357,8 +370,6 @@
       } catch (e) {
         // cancelled or port closed
       } finally {
-        try { serialWriter?.releaseLock(); } catch {}
-        serialWriter = null;
         try { serialReader.releaseLock(); } catch {}
         serialReader  = null;
         state.fingerA = false;
@@ -382,7 +393,6 @@
       serialPort = port;
       try {
         await serialPort.open({ baudRate: 115200 });
-        try { serialWriter = serialPort.writable.getWriter(); } catch(e) {}
         readSerial();
       } catch (e) {
         serialPort = null;
