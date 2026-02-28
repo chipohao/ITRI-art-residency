@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>Heartbeats in Harmony</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.9.4/p5.min.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #060402;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      font-family: 'Courier New', monospace;
+      color: #c88200;
+    }
+
+    h1 {
+      font-size: 10px;
+      letter-spacing: 5px;
+      text-transform: uppercase;
+      margin-bottom: 16px;
+      opacity: 0.4;
+    }
+
+    #controls {
+      display: flex;
+      gap: 36px;
+      padding-bottom: 14px;
+      align-items: flex-end;
+    }
+
+    .ctrl {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2px;
+    }
+
+    .lbl { font-size: 8px; letter-spacing: 3px; opacity: 0.4; text-transform: uppercase; }
+    .val { font-size: 34px; line-height: 1.1; }
+    .sub { font-size: 8px; letter-spacing: 1px; opacity: 0.28; min-height: 12px; }
+
+    .divider {
+      width: 1px;
+      height: 50px;
+      background: #2a1000;
+      margin-bottom: 8px;
+    }
+
+    input[type=range] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 110px;
+      height: 1px;
+      background: #3a1800;
+      cursor: pointer;
+      margin-top: 7px;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: #c88200;
+      cursor: pointer;
+    }
+
+    #wrap {
+      position: relative;
+      width: 720px;
+      height: 500px;
+    }
+
+    #wrap canvas {
+      position: absolute;
+      top: 0; left: 0;
+      display: block;
+    }
+
+    #scanlines {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px, transparent 2px,
+        rgba(0,0,0,0.1) 2px, rgba(0,0,0,0.1) 3px
+      );
+      z-index: 2;
+    }
+
+    #vignette {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: radial-gradient(
+        ellipse at center,
+        transparent 38%,
+        rgba(0,0,0,0.72) 100%
+      );
+      z-index: 3;
+    }
+
+    #footer {
+      display: flex;
+      align-items: center;
+      gap: 28px;
+      margin-top: 14px;
+    }
+
+    button {
+      background: none;
+      border: 1px solid #2a1000;
+      color: #c88200;
+      font-family: 'Courier New', monospace;
+      font-size: 9px;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      padding: 5px 14px;
+      cursor: pointer;
+      opacity: 0.35;
+      transition: opacity 0.15s;
+    }
+    button:hover { opacity: 0.9; }
+    #ratio { font-size: 9px; letter-spacing: 2px; opacity: 0.22; }
+  </style>
+</head>
+<body>
+
+  <h1>Heartbeats in Harmony</h1>
+
+  <div id="controls">
+    <div class="ctrl">
+      <div class="lbl">Heart A</div>
+      <div class="val" id="val-a">72</div>
+      <div class="sub" id="hz-a">1.20 Hz</div>
+      <input type="range" id="sl-a" min="40" max="160" value="72">
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="ctrl">
+      <div class="lbl">Heart B</div>
+      <div class="val" id="val-b">80</div>
+      <div class="sub" id="hz-b">1.33 Hz</div>
+      <input type="range" id="sl-b" min="40" max="160" value="80">
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="ctrl">
+      <div class="lbl">Phase</div>
+      <div class="val" id="val-phase">45°</div>
+      <div class="sub">&nbsp;</div>
+      <input type="range" id="sl-phase" min="0" max="360" value="45" step="1">
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="ctrl">
+      <div class="lbl">Trail</div>
+      <div class="val" id="val-fade">∞</div>
+      <div class="sub" id="sub-fade">&nbsp;</div>
+      <input type="range" id="sl-fade" min="0" max="100" value="0" step="1">
+    </div>
+  </div>
+
+  <div id="wrap">
+    <div id="scanlines"></div>
+    <div id="vignette"></div>
+  </div>
+
+  <div id="footer">
+    <div id="ratio">ratio —</div>
+    <button id="btn-clear">Clear</button>
+  </div>
+
+  <script>
+    const state = {
+      bpmA:  72,
+      bpmB:  80,
+      phase: Math.PI / 4,
+      fade:  0   // 0 = infinite trail; 1–100 maps to half-life 20s–0.3s
+    };
+    let needsClear = false;
+
+    function gcd(a, b) { return b === 0 ? a : gcd(b, a % b); }
+    function updateRatio() {
+      const g = gcd(state.bpmA, state.bpmB);
+      document.getElementById('ratio').textContent =
+        `ratio  ${state.bpmA/g} : ${state.bpmB/g}`;
+    }
+    updateRatio();
+
+    document.getElementById('sl-a').addEventListener('input', function() {
+      state.bpmA = +this.value;
+      document.getElementById('val-a').textContent = this.value;
+      document.getElementById('hz-a').textContent = (state.bpmA/60).toFixed(2) + ' Hz';
+      updateRatio();
+    });
+    document.getElementById('sl-b').addEventListener('input', function() {
+      state.bpmB = +this.value;
+      document.getElementById('val-b').textContent = this.value;
+      document.getElementById('hz-b').textContent = (state.bpmB/60).toFixed(2) + ' Hz';
+      updateRatio();
+    });
+    document.getElementById('sl-phase').addEventListener('input', function() {
+      state.phase = +this.value * Math.PI / 180;
+      document.getElementById('val-phase').textContent = this.value + '°';
+    });
+    document.getElementById('sl-fade').addEventListener('input', function() {
+      state.fade = +this.value;
+      if (state.fade === 0) {
+        document.getElementById('val-fade').textContent = '∞';
+        document.getElementById('sub-fade').textContent = '\u00a0';
+      } else {
+        // Map 1–100 → half-life 20s–0.3s (logarithmic feel via power map)
+        const hl = Math.pow(20, 1 - state.fade / 100) * 0.3;
+        document.getElementById('val-fade').textContent = hl < 1 ? hl.toFixed(1) : Math.round(hl);
+        document.getElementById('sub-fade').textContent = 'sec';
+      }
+    });
+    document.getElementById('btn-clear').addEventListener('click', () => {
+      needsClear = true;
+    });
+
+    new p5(function(p) {
+      const W = 720, H = 500;
+      const LX = W / 2, LY = 200, LR = 158;
+      const CA = { x: 92,  y: 400, r: 52 };
+      const CB = { x: 628, y: 400, r: 52 };
+
+      // Ping-pong sand buffers for smooth float-precision fade
+      let pg1, pg2;
+      let t = 0;
+      let angleA = -Math.PI / 2;
+      let angleB = -Math.PI / 2;
+      let prevAngleA = angleA;
+      let prevAngleB = angleB;
+      let pulseA = { r: 0, a: 0 };
+      let pulseB = { r: 0, a: 0 };
+
+      p.setup = function() {
+        const cv = p.createCanvas(W, H);
+        cv.parent('wrap');
+        cv.elt.style.zIndex = '1';
+
+        pg1 = p.createGraphics(W, H);
+        pg2 = p.createGraphics(W, H);
+        pg1.background(0);
+        pg2.background(0);
+        p.noSmooth();
+      };
+
+      p.draw = function() {
+        if (needsClear) {
+          pg1.background(0);
+          pg2.background(0);
+          t = 0;
+          angleA = prevAngleA = -Math.PI / 2;
+          angleB = prevAngleB = -Math.PI / 2;
+          pulseA = { r: 0, a: 0 };
+          pulseB = { r: 0, a: 0 };
+          needsClear = false;
+        }
+
+        const dt    = Math.min(p.deltaTime / 1000, 0.05);
+        const freqA = state.bpmA / 60;
+        const freqB = state.bpmB / 60;
+
+        // ── Step 1: Fade ──────────────────────────────────────────────
+        // pg2 = pg1 * keepRatio   (float-precision via globalAlpha + drawImage)
+        pg2.background(0);
+
+        if (state.fade > 0) {
+          // half-life in seconds: logarithmic slider feel
+          const halfLife = Math.pow(20, 1 - state.fade / 100) * 0.3;
+          const keepRatio = Math.pow(0.5, dt / halfLife);
+          pg2.drawingContext.globalAlpha = keepRatio;
+          pg2.drawingContext.drawImage(pg1.elt, 0, 0);
+          pg2.drawingContext.globalAlpha = 1.0;
+        } else {
+          // No fade — just copy
+          pg2.drawingContext.drawImage(pg1.elt, 0, 0);
+        }
+
+        // ── Step 2: Sand particles → pg2 ─────────────────────────────
+        const SUB = 10;
+        // Phosphor glow via shadowBlur
+        pg2.drawingContext.shadowBlur  = 5;
+        pg2.drawingContext.shadowColor = 'rgba(210, 115, 8, 0.55)';
+
+        for (let s = 0; s < SUB; s++) {
+          const ts = t + s * (dt / SUB);
+          const x  = LX + LR * Math.sin(freqA * ts * p.TWO_PI);
+          const y  = LY + LR * Math.sin(freqB * ts * p.TWO_PI + state.phase);
+
+          for (let i = 0; i < 12; i++) {
+            const ox = p.randomGaussian(0, 1.5);
+            const oy = p.randomGaussian(0, 1.5);
+            const d2 = ox * ox + oy * oy;
+            const al = p.map(d2, 0, 10, 155, 12, true);
+            pg2.noStroke();
+            pg2.fill(p.random(192, 226), p.random(100, 142), p.random(5, 20), al);
+            pg2.circle(x + ox, y + oy, p.random(0.5, 1.8));
+          }
+        }
+
+        pg2.drawingContext.shadowBlur = 0;
+
+        // ── Step 3: Swap buffers ──────────────────────────────────────
+        [pg1, pg2] = [pg2, pg1];
+
+        // Pen position before incrementing t
+        const penX = LX + LR * Math.sin(freqA * t * p.TWO_PI);
+        const penY = LY + LR * Math.sin(freqB * t * p.TWO_PI + state.phase);
+        t += dt;
+
+        // ── Step 4: Rotating angles + heartbeat detect ────────────────
+        prevAngleA = angleA;
+        prevAngleB = angleB;
+        angleA += freqA * dt * p.TWO_PI;
+        angleB += freqB * dt * p.TWO_PI;
+
+        if ((angleA % p.TWO_PI) < (prevAngleA % p.TWO_PI)) {
+          pulseA.r = CA.r * 1.1; pulseA.a = 220;
+        }
+        if ((angleB % p.TWO_PI) < (prevAngleB % p.TWO_PI)) {
+          pulseB.r = CB.r * 1.1; pulseB.a = 220;
+        }
+        pulseA.r += dt * 55;  pulseA.a = Math.max(0, pulseA.a - dt * 320);
+        pulseB.r += dt * 55;  pulseB.a = Math.max(0, pulseB.a - dt * 320);
+
+        const dotAX = CA.x + CA.r * Math.cos(angleA);
+        const dotAY = CA.y + CA.r * Math.sin(angleA);
+        const dotBX = CB.x + CB.r * Math.cos(angleB);
+        const dotBY = CB.y + CB.r * Math.sin(angleB);
+
+        // ── Step 5: Render ────────────────────────────────────────────
+        p.image(pg1, 0, 0);
+
+        // Connection lines (dashed)
+        p.drawingContext.setLineDash([3, 6]);
+        p.stroke(200, 115, 15, 55);
+        p.strokeWeight(1);
+        p.noFill();
+        p.line(dotAX, dotAY, penX, penY);
+        p.line(dotBX, dotBY, penX, penY);
+        p.drawingContext.setLineDash([]);
+
+        // ── Circle A ─────────────────────────
+        p.noFill();
+        p.stroke(160, 88, 8, 50);
+        p.strokeWeight(1);
+        p.circle(CA.x, CA.y, CA.r * 2);
+
+        if (pulseA.a > 0) {
+          p.noFill();
+          p.stroke(220, 140, 20, pulseA.a);
+          p.strokeWeight(1);
+          p.circle(CA.x, CA.y, pulseA.r * 2);
+        }
+
+        p.stroke(160, 88, 8, 40);
+        p.strokeWeight(0.8);
+        p.line(CA.x, CA.y, dotAX, dotAY);
+
+        p.noStroke(); p.fill(160, 88, 8, 80);
+        p.circle(CA.x, CA.y, 4);
+
+        p.noStroke(); p.fill(225, 145, 22, 210);
+        p.circle(dotAX, dotAY, 8);
+
+        p.fill(160, 88, 8, 75);
+        p.noStroke();
+        p.textFont('Courier New');
+        p.textSize(8);
+        p.textAlign(p.CENTER);
+        p.text('HEART  A', CA.x, CA.y + CA.r + 15);
+        p.text(state.bpmA + ' BPM', CA.x, CA.y + CA.r + 26);
+
+        // ── Circle B ─────────────────────────
+        p.noFill();
+        p.stroke(160, 88, 8, 50);
+        p.strokeWeight(1);
+        p.circle(CB.x, CB.y, CB.r * 2);
+
+        if (pulseB.a > 0) {
+          p.noFill();
+          p.stroke(220, 140, 20, pulseB.a);
+          p.strokeWeight(1);
+          p.circle(CB.x, CB.y, pulseB.r * 2);
+        }
+
+        p.stroke(160, 88, 8, 40);
+        p.strokeWeight(0.8);
+        p.line(CB.x, CB.y, dotBX, dotBY);
+
+        p.noStroke(); p.fill(160, 88, 8, 80);
+        p.circle(CB.x, CB.y, 4);
+
+        p.noStroke(); p.fill(225, 145, 22, 210);
+        p.circle(dotBX, dotBY, 8);
+
+        p.fill(160, 88, 8, 75);
+        p.noStroke();
+        p.textFont('Courier New');
+        p.textSize(8);
+        p.textAlign(p.CENTER);
+        p.text('HEART  B', CB.x, CB.y + CB.r + 15);
+        p.text(state.bpmB + ' BPM', CB.x, CB.y + CB.r + 26);
+
+        // ── Pen dot ───────────────────────────
+        p.noStroke(); p.fill(255, 210, 90, 200);
+        p.circle(penX, penY, 5);
+      };
+    });
+  </script>
+</body>
+</html>
