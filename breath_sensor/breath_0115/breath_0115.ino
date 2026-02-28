@@ -1,3 +1,43 @@
+/*
+ * Breath Sensor — ESP32 (breath_0115)
+ *
+ * 雙路吹氣/吸氣感測系統：將呼吸強度映射為 -10~+10 浮點輸出，
+ * 並同步驅動兩組 PWM 霧化器（超音波霧化片），
+ * 讓呼吸強度直接控制出霧量。
+ *
+ * ── 硬體接線 ──────────────────────────────────────────────
+ *   HX710B_1 : SCK=GPIO18  DOUT=GPIO19
+ *   HX710B_2 : SCK=GPIO16  DOUT=GPIO17
+ *   MOSFET_1 : PWM 輸出 GPIO25（控制霧化器 1）
+ *   MOSFET_2 : PWM 輸出 GPIO26（控制霧化器 2）
+ *   供電      : 3.3V & GND
+ *
+ *   HX710B 為 24-bit ADC（常用於壓力/呼吸感測），
+ *   此處採用 bit-bang SPI 讀取（GPIO 模擬時序），非硬體 SPI/I2C。
+ *
+ * ── 演算法 ────────────────────────────────────────────────
+ *   1. 開機 baseline 校準：上電後各讀 40 次取平均，
+ *      baseline 代表靜止（無呼吸）時的 raw 值。
+ *   2. Deadzone：|raw - baseline| ≤ 30000 輸出 0（過濾靜止雜訊）。
+ *   3. 自適應映射：動態追蹤歷史 maxBlow / minInhale，
+ *      吹氣 → +1.0~+10.0，吸氣 → -1.0~-10.0。
+ *      |out| ≥ 8 時為 100% 霧化。
+ *   4. Kick 機制：霧化器從停止（duty=0）重新啟動時，
+ *      先全功率維持 1100ms（KICK_MS），確保超音波霧化片順利起振。
+ *
+ * ── Serial 輸出格式（115200 baud）────────────────────────
+ *   "out1 out2\n"   — 例：3.47 -1.20
+ *   每 50ms 輸出一次（約 20Hz）
+ *   out 範圍：-10.0（最強吸氣）~ 0.0（靜止）~ +10.0（最強吹氣）
+ *
+ * ── Max/MSP 接收方式 ─────────────────────────────────────
+ *   [serial <port> 115200]
+ *   → [fromsymbol] → [unpack f f] → 分別取得 out1, out2
+ *
+ * 注意：使用 ESP32 Arduino Core 3.x 新版 API（ledcAttach），
+ *       舊版 Core 2.x 需改為 ledcSetup + ledcAttachPin。
+ */
+
 #include <limits.h>
 #include <math.h>
 

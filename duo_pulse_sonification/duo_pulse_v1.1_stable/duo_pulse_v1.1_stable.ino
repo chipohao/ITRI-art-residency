@@ -1,14 +1,46 @@
 /*
- * Dual Pulse Sensor - ESP32 (Smart Dynamic Version)
- * 
- * Features:
- * - Dynamic Thresholding: Automatically adjusts to signal strength (solves "Pulse B is weak" issue).
- * - Noise Filtering: Ignores small jitters.
- * - Auto-Calibration: Tracks Peaks (P) and Troughs (T) to find the perfect heartbeat cutoff.
- * 
- * Wiring:
- * - Sensor A: GPIO 34
- * - Sensor B: GPIO 35
+ * Dual Pulse Sensor — ESP32 (v1.1 Stable)
+ * 雙人脈搏感測器 — Rolling Min/Max 動態閾值版（穩定版）
+ *
+ * 演算法：Rolling Min/Max 自適應閾值
+ * - 即時追蹤訊號上下包絡（signalMax / signalMin）
+ * - threshold = (signalMax + signalMin) / 2
+ * - hysteresis = amplitude / 4（至少 20），防止閾值附近誤觸發
+ * - 包絡線緩慢衰退（每次 ±1），讓閾值跟上 DC 基線漂移
+ * - 手指偵測：fingerThreshold = 500（固定門檻）
+ *   ⚠ 已知問題：若感測器靜止值 > 500（常見 ~1800），
+ *   系統會永遠誤判為「有手指」。請升級至 v2.4 解決此問題。
+ *
+ * ── 硬體接線 ──────────────────────────────────────────────
+ *   感測器 A 訊號腳 → GPIO34 (ADC1_CH6，輸入專用)
+ *   感測器 B 訊號腳 → GPIO35 (ADC1_CH7，輸入專用)
+ *   VCC → 3.3V（勿接 5V）    GND → GND
+ *
+ * ── 訊號處理 ──────────────────────────────────────────────
+ *   1. 低通平滑（slideAmount=3.0，等效 Max/MSP [slide 3 3]）
+ *   2. 手指偵測（Signal < 500 → fingerOff，重置 Min/Max）
+ *   3. Rolling Min/Max 追蹤 + 動態閾值計算
+ *   4. 帶武裝機制（armed）的心跳偵測
+ *      - Refractory period：300ms（最大約 200 BPM）
+ *      - Beat gate：200ms ON 後關閉
+ *
+ * ── Serial 輸出格式（115200 baud）────────────────────────
+ *   "/pulse/userA/raw 1812\n"
+ *   "/pulse/userA/finger 1\n"   — 1=有手指, 0=移開
+ *   "/pulse/userA/beat 1\n"     — 1=心跳開始, 0=心跳結束 (200ms 後)
+ *   "/pulse/userA/bpm 72\n"     — 每次心跳時輸出 BPM（>30 才輸出）
+ *   同樣地址適用於 userB。
+ *   取樣率：100Hz（loop delay 10ms）
+ *
+ * ── Max/MSP 接收 ──────────────────────────────────────────
+ *   [serial <port> 115200] → [fromsymbol]
+ *   → [route /pulse/userA/raw /pulse/userA/beat /pulse/userA/bpm /pulse/userA/finger
+ *            /pulse/userB/raw /pulse/userB/beat /pulse/userB/bpm /pulse/userB/finger]
+ *   注意：[route] 比對完整路徑，不支援前綴分層比對。
+ *
+ * ── WiFi OSC（可選）──────────────────────────────────────
+ *   解開 #define ENABLE_WIFI，設定 ssid/password/outIp/outPort。
+ *   需安裝 CNMAT OSC 函式庫。
  */
 
 // Uncomment the following line to enable WiFi & OSC

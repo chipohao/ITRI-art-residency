@@ -1,14 +1,36 @@
 /*
- * tof_optimized.ino
- * VL53L0X x2 ToF 距離感測 — 優化版
+ * ToF Distance Sensor (Optimized) — ESP32 + VL53L0X x2
+ * ToF 雙感測器距離測量 — 優化版
  *
  * 功能：
- *   - 雙感測器初始化 + 錯誤檢查
- *   - 中位數校正（暖機 500ms + 收集 5s）
- *   - 雙層濾波（Median window=3 + 自適應 EMA）
- *   - 量測品質控制（RangeStatus==0, 0~2000mm）
- *   - 固定 50Hz OSC 風格 Serial 輸出
- *   - Serial 指令：c=重新校正, r=重啟濾波器
+ *   - 雙感測器初始化 + 錯誤檢查（初始化失敗時停止並印出錯誤）
+ *   - 三階段狀態機：暖機（500ms 丟棄）→ 校正（5s 收集中位數）→ 運作
+ *   - 中位數基準校正：收集 5 秒有效樣本，取中位數作為零點偏移
+ *   - 雙層平滑濾波：Median 窗口=3（去除離群值）+ 自適應 EMA
+ *       靜止/緩動 → alpha=0.15（平滑），快速移動 → alpha=0.8（跟手）
+ *   - 量測品質控制：RangeStatus != 4，距離限制 0~2000mm
+ *   - 固定 50Hz 輸出（OUTPUT_INTERVAL_MS = 20ms）
+ *   - Serial 指令：'c' = 重新校正，'r' = 重啟濾波器
+ *
+ * ── 硬體接線 ──────────────────────────────────────────────
+ *   I2C SDA   → GPIO21    I2C SCL  → GPIO22（400kHz Fast Mode）
+ *   XSHUT_1   → GPIO25    感測器 1 硬體關閉腳（低電位=關閉）
+ *   XSHUT_2   → GPIO26    感測器 2 硬體關閉腳
+ *   VCC       → 3.3V      GND → GND
+ *   感測器 1 地址：0x30，感測器 2 地址：0x31（預設 0x29 依序改地址）
+ *   注意：VL53L0X 只能接 3.3V，不可接 5V。
+ *
+ * ── Serial 輸出格式（115200 baud）────────────────────────
+ *   暖機中  ：（無輸出，等待 500ms）
+ *   校正中  ："/status calibrating 5\n"（每秒倒數）
+ *   校正完成："/cal_done offsetX offsetY samplesX samplesY\n"
+ *   正常運作："/tof X Y rawX rawY\n"（50Hz）
+ *             X, Y = 中位數 + EMA 平滑後距離（mm）
+ *             rawX, rawY = 僅歸零無平滑的距離（mm）
+ *
+ * ── Max/MSP 接收 ──────────────────────────────────────────
+ *   [serial <port> 115200] → [fromsymbol]
+ *   → [route /tof] → [unpack i i i i] → X Y rawX rawY
  */
 
 #include <Wire.h>

@@ -23,6 +23,23 @@
  *   /pulse/userX/beat     — 1 = 心跳開始 / 0 = 心跳結束（200ms gate）
  *   /pulse/userX/bpm      — 每次心跳時輸出 BPM
  *   /pulse/userX/thresh   — 目前使用的 threshold（debug 用）
+ *
+ * ── 硬體接線 ──────────────────────────────────────────────
+ *   感測器 A 訊號腳 → GPIO34 (ADC1_CH6，輸入專用)
+ *   感測器 B 訊號腳 → GPIO35 (ADC1_CH7，輸入專用)
+ *   VCC → 3.3V（勿接 5V）    GND → GND
+ *   需在 setup() 設定 analogSetPinAttenuation(pin, ADC_11db)
+ *   以支援感測器 DC 偏壓（靜止值約 1600–2000，12-bit ADC）
+ *
+ * ── Max/MSP 接收 ──────────────────────────────────────────
+ *   [serial <port> 115200] → [fromsymbol]
+ *   → [route /pulse/userA/raw /pulse/userA/beat /pulse/userA/bpm /pulse/userA/finger
+ *            /pulse/userB/raw /pulse/userB/beat /pulse/userB/bpm /pulse/userB/finger]
+ *   注意：[route] 比對完整路徑，不支援前綴分層比對。
+ *
+ * ── WiFi OSC（可選）──────────────────────────────────────
+ *   解開 #define ENABLE_WIFI，填入 ssid/password/outIp/outPort。
+ *   需安裝 CNMAT OSC 函式庫。
  */
 
 // #define ENABLE_WIFI

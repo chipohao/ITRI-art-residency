@@ -1,14 +1,42 @@
 /*
- * Dual Pulse Sensor - ESP32 (Smart Dynamic Version)
- * 
- * Features:
- * - Dynamic Thresholding: Automatically adjusts to signal strength (solves "Pulse B is weak" issue).
- * - Noise Filtering: Ignores small jitters.
- * - Auto-Calibration: Tracks Peaks (P) and Troughs (T) to find the perfect heartbeat cutoff.
- * 
- * Wiring:
- * - Sensor A: GPIO 34
- * - Sensor B: GPIO 35
+ * Dual Pulse Sensor — ESP32 (duo_pulse, 最初版本)
+ * 雙人脈搏感測器 — 動態閾值版
+ *
+ * 此為最初版本，與 v1.1_stable 演算法相同（Rolling Min/Max 動態閾值）。
+ * 建議使用 duo_pulse_v1.1_stable（已標示版本號），
+ * 或最新的 duo_pulse_v2.0_playground（v2.4，包絡線手指偵測）。
+ *
+ * 演算法：Rolling Min/Max 動態閾值
+ * - 自動追蹤訊號上下包絡線（signalMax / signalMin）
+ * - threshold = (signalMax + signalMin) / 2
+ * - hysteresis = amplitude / 4（至少 20），防止誤觸發
+ * - 手指偵測：固定門檻 fingerThreshold = 500
+ *   ⚠ 已知問題：感測器靜止值若 > 500（常見 ~1800），
+ *   將永遠誤判為「有手指」。此問題在 v2.4 已用包絡線振幅解決。
+ *
+ * ── 硬體接線 ──────────────────────────────────────────────
+ *   感測器 A 訊號腳 → GPIO34 (ADC1_CH6，輸入專用)
+ *   感測器 B 訊號腳 → GPIO35 (ADC1_CH7，輸入專用)
+ *   VCC → 3.3V（勿接 5V）    GND → GND
+ *   建議：analogSetPinAttenuation(pin, ADC_11db) 以支援 DC 偏壓 ~1.6–2.0V
+ *
+ * ── Serial 輸出格式（115200 baud）────────────────────────
+ *   "/pulse/userA/raw 1812\n"
+ *   "/pulse/userA/finger 1\n"   — 1=有手指, 0=移開
+ *   "/pulse/userA/beat 1\n"     — 1=心跳開始, 0=心跳結束 (200ms 後)
+ *   "/pulse/userA/bpm 72\n"     — 每次心跳時輸出 BPM
+ *   同樣的地址也適用於 userB。
+ *   取樣率：100Hz（loop delay 10ms）
+ *
+ * ── Max/MSP 接收 ──────────────────────────────────────────
+ *   [serial <port> 115200] → [fromsymbol]
+ *   → [route /pulse/userA/raw /pulse/userA/beat /pulse/userA/bpm /pulse/userA/finger
+ *            /pulse/userB/raw /pulse/userB/beat /pulse/userB/bpm /pulse/userB/finger]
+ *   注意：[route] 比對完整路徑，不支援前綴分層比對。
+ *
+ * ── WiFi OSC（可選）──────────────────────────────────────
+ *   解開 #define ENABLE_WIFI，設定 ssid/password/outIp/outPort。
+ *   需安裝 CNMAT OSC 函式庫。
  */
 
 // Uncomment the following line to enable WiFi & OSC
