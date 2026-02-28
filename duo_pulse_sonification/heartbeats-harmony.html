@@ -127,6 +127,14 @@
     }
     button:hover { opacity: 0.9; }
     #ratio { font-size: 9px; letter-spacing: 2px; opacity: 0.22; }
+
+    #serial-status {
+      font-size: 8px;
+      letter-spacing: 2px;
+      opacity: 0.35;
+    }
+    #serial-status.connected { color: #88cc44; opacity: 0.7; }
+    #serial-status.calibrating { color: #ccaa22; opacity: 0.7; }
   </style>
 </head>
 <body>
@@ -176,6 +184,8 @@
 
   <div id="footer">
     <div id="ratio">ratio —</div>
+    <button id="btn-serial">Serial</button>
+    <div id="serial-status">disconnected</div>
     <button id="btn-clear">Clear</button>
   </div>
 
@@ -226,6 +236,94 @@
     });
     document.getElementById('btn-clear').addEventListener('click', () => {
       needsClear = true;
+    });
+
+    // ── Web Serial API ────────────────────────────────────────────────────
+    // Chrome/Edge only. Click "Serial" to connect ESP32 at 115200 baud.
+    // Parses lines like "/pulse/userA/bpm 72" and updates BPM sliders live.
+    let serialPort   = null;
+    let serialReader = null;
+    const statusEl   = document.getElementById('serial-status');
+
+    function setSerialStatus(cls, text) {
+      statusEl.className   = cls;
+      statusEl.textContent = text;
+    }
+
+    function applyBpmA(bpm) {
+      bpm = Math.max(40, Math.min(160, bpm));
+      state.bpmA = bpm;
+      document.getElementById('sl-a').value         = bpm;
+      document.getElementById('val-a').textContent  = bpm;
+      document.getElementById('hz-a').textContent   = (bpm / 60).toFixed(2) + ' Hz';
+      updateRatio();
+    }
+
+    function applyBpmB(bpm) {
+      bpm = Math.max(40, Math.min(160, bpm));
+      state.bpmB = bpm;
+      document.getElementById('sl-b').value         = bpm;
+      document.getElementById('val-b').textContent  = bpm;
+      document.getElementById('hz-b').textContent   = (bpm / 60).toFixed(2) + ' Hz';
+      updateRatio();
+    }
+
+    async function readSerial() {
+      setSerialStatus('calibrating', 'calibrating...');
+      let buf = '';
+      const decoder     = new TextDecoderStream();
+      serialPort.readable.pipeTo(decoder.writable);
+      serialReader = decoder.readable.getReader();
+
+      try {
+        while (true) {
+          const { value, done } = await serialReader.read();
+          if (done) break;
+          buf += value;
+          let nl;
+          while ((nl = buf.indexOf('\n')) !== -1) {
+            const line = buf.slice(0, nl).trim();
+            buf = buf.slice(nl + 1);
+            // Match "/pulse/userA/bpm 72"  or  "/pulse/userB/bpm 88"
+            const m = line.match(/^\/pulse\/(userA|userB)\/bpm\s+(\d+)/);
+            if (m) {
+              const bpm = parseInt(m[2], 10);
+              if (m[1] === 'userA') applyBpmA(bpm);
+              else                  applyBpmB(bpm);
+              setSerialStatus('connected', 'connected');
+            }
+          }
+        }
+      } catch (e) {
+        // port closed or reader cancelled — normal on disconnect
+      } finally {
+        try { serialReader.releaseLock(); } catch {}
+        setSerialStatus('', 'disconnected');
+        serialPort   = null;
+        serialReader = null;
+      }
+    }
+
+    document.getElementById('btn-serial').addEventListener('click', async () => {
+      // If already connected, disconnect
+      if (serialPort) {
+        try { await serialReader?.cancel(); } catch {}
+        try { await serialPort.close();    } catch {}
+        return;
+      }
+      if (!navigator.serial) {
+        alert('Web Serial API not supported.\nPlease use Chrome or Edge (desktop).');
+        return;
+      }
+      try {
+        serialPort = await navigator.serial.requestPort();
+        await serialPort.open({ baudRate: 115200 });
+        readSerial();   // runs asynchronously in the background
+      } catch (e) {
+        // user cancelled the port picker, or open failed
+        serialPort = null;
+        setSerialStatus('', 'disconnected');
+      }
     });
 
     new p5(function(p) {
