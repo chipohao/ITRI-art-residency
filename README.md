@@ -14,7 +14,6 @@ An art residency project at ITRI (Industrial Technology Research Institute, Taiw
 |---|---|---|
 | `piezo_detect/` | 壓電感測基礎模組 | Basic piezoelectric sensor module |
 | `piezo_detect_fft/` | 壓電感測 FFT 分析 | Piezoelectric sensor with FFT analysis |
-| `duo_pulse/` | 雙人脈搏感測 | Dual pulse sensor (two-person heartbeat detection) |
 | `duo_pulse_sonification/` | 脈搏聲音化模組 | Pulse sensor sonification with multiple firmware versions |
 | `pressure_sensor/` | 壓力感測模組 | Pressure sensor module |
 | `breath_sensor/` | 吹氣感測模組 | Breath/blow detection sensor module |
@@ -52,10 +51,6 @@ Basic piezo sensing: ESP32 reads piezoelectric signals and sends data to Max/MSP
 ### piezo_detect_fft
 在壓電感測的基礎上加入 FFT 頻譜分析功能。
 Extends piezo detection with FFT (Fast Fourier Transform) spectral analysis in Max/MSP.
-
-### duo_pulse
-雙人脈搏感測模組，使用 ESP32 同時讀取兩個脈搏感測器，具備動態閥值與自動校正功能，支援 WiFi/OSC 傳輸。
-Dual pulse sensor module using ESP32 with dynamic thresholding and auto-calibration. Supports WiFi/OSC output.
 
 ### duo_pulse_sonification
 脈搏聲音化模組，將脈搏感測數據轉換為聲音輸出，包含多個韌體版本（v1.1 穩定版、v2.0 實驗版）與 Max/MSP patch。
