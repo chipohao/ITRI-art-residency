@@ -53,8 +53,8 @@ Basic piezo sensing: ESP32 reads piezoelectric signals and sends data to Max/MSP
 Extends piezo detection with FFT (Fast Fourier Transform) spectral analysis in Max/MSP.
 
 ### duo_pulse_sonification
-脈搏聲音化模組，將脈搏感測數據轉換為聲音輸出，包含多個韌體版本（v1.1 穩定版、v2.0 實驗版）與 Max/MSP patch。
-Pulse sensor sonification module that converts heartbeat data into audio output. Includes multiple firmware versions (v1.1 stable, v2.0 playground) and Max/MSP patch.
+雙人脈搏互動系統，同時擷取兩位參與者心跳，透過自動校準三段式演算法（v2.3）偵測 BPM、心跳觸發與手指狀態。附 `heartbeats-harmony.html` 視覺展示：以 p5.js 繪製沙畫李薩如圖形，支援 Web Serial API 直接從 Chrome 讀取 ESP32 資料。
+Dual-participant heartbeat system with three-state auto-calibration firmware (v2.3) outputting BPM, beat trigger, and finger detection. Includes `heartbeats-harmony.html` — a p5.js Lissajous sand-drawing demo with Web Serial API support (Chrome reads ESP32 directly).
 
 ### pressure_sensor
 壓力感測模組，搭配 Max/MSP 進行雙手壓力偵測與視覺化。
