@@ -276,24 +276,57 @@
     const selPort   = document.getElementById('sel-port');
     const coordsEl  = document.getElementById('pen-coords');
 
-    // ── WebSocket → OSC relay (ws_osc_relay.js) ───────────────────────────
+    // ── Max jweb integration ──────────────────────────────────────────────
+    // 偵測是否在 Max [jweb] 環境中執行
+    const inJweb = (typeof max !== 'undefined');
+
+    if (inJweb) {
+      // 在 Max 中：隱藏 Web Serial 控制項
+      document.getElementById('btn-scan').style.display  = 'none';
+      document.getElementById('sel-port').style.display  = 'none';
+      setSerialStatus('calibrating', 'max mode');
+    }
+
+    // Max 透過 [script setMaxBpmA 72] 呼叫以下 function，控制視覺化
+    // 在 Max patch 中：[prepend script setMaxBpmA] → [jweb]
+    function setMaxBpmA(v)    { applyBpmA(v); }
+    function setMaxBpmB(v)    { applyBpmB(v); }
+    function setMaxFingerA(v) { state.fingerA = (v === 1); }
+    function setMaxFingerB(v) { state.fingerB = (v === 1); }
+    function setMaxBeatA()    { state.triggerBeatA = true; }
+    function setMaxBeatB()    { state.triggerBeatB = true; }
+
+    // ── WebSocket → OSC relay (非 jweb 環境使用) ─────────────────────────
     let wsRelay = null;
 
-    function connectWsRelay() {
-      try {
-        wsRelay = new WebSocket('ws://localhost:8080');
-        wsRelay.addEventListener('open',  () => console.log('[ws-relay] connected'));
-        wsRelay.addEventListener('close', () => {
-          wsRelay = null;
-          setTimeout(connectWsRelay, 3000);  // auto-retry
-        });
-        wsRelay.addEventListener('error', () => {});
-      } catch(e) {}
+    if (!inJweb) {
+      function connectWsRelay() {
+        try {
+          wsRelay = new WebSocket('ws://localhost:8080');
+          wsRelay.addEventListener('open',  () => console.log('[ws-relay] connected'));
+          wsRelay.addEventListener('close', () => {
+            wsRelay = null;
+            setTimeout(connectWsRelay, 3000);
+          });
+          wsRelay.addEventListener('error', () => {});
+        } catch(e) {}
+      }
+      connectWsRelay();
     }
-    connectWsRelay();
 
+    // penWrite: jweb → max.outlet，否則走 WebSocket relay
     function penWrite(text) {
-      if (wsRelay && wsRelay.readyState === WebSocket.OPEN) wsRelay.send(text);
+      if (inJweb) {
+        text.split('\n').forEach(line => {
+          line = line.trim();
+          if (!line) return;
+          const m = line.match(/^(\/\S+)\s+([-\d.]+)/);
+          if (!m) return;
+          max.outlet(m[1], parseFloat(m[2]));  // 直接送到 Max outlet
+        });
+      } else if (wsRelay && wsRelay.readyState === WebSocket.OPEN) {
+        wsRelay.send(text);
+      }
     }
 
     function setSerialStatus(cls, text) {
