@@ -81,7 +81,7 @@ public:
   const float ENV_FALL = 0.002;  // 慢：tau ≈ 500 samples ≈ 1 秒
   // 判斷有手指的最小脈動振幅（ADC counts）
   // 靜止雜訊 < 10，心跳脈衝通常 50–300+
-  const int FINGER_AMP_THRESH = 35;
+  const int FINGER_AMP_THRESH = 15;
   // 絕對底線：低於此值代表 ADC 完全沒訊號（斷線或未接）
   const int SIG_FLOOR = 50;
 

@@ -136,6 +136,15 @@
     #serial-status.connected { color: #88cc44; opacity: 0.7; }
     #serial-status.calibrating { color: #aaaaaa; opacity: 0.7; }
 
+    #pen-coords {
+      font-size: 8px;
+      letter-spacing: 2px;
+      opacity: 0.45;
+      font-variant-numeric: tabular-nums;
+      min-width: 140px;
+      text-align: center;
+    }
+
     select {
       -webkit-appearance: none;
       appearance: none;
@@ -205,6 +214,7 @@
     <button id="btn-scan">Scan Port</button>
     <select id="sel-port"><option value="">— no port —</option></select>
     <div id="serial-status">disconnected</div>
+    <div id="pen-coords">x —&nbsp;&nbsp;&nbsp; y —</div>
     <button id="btn-clear">Clear</button>
   </div>
 
@@ -261,9 +271,17 @@
     // ── Web Serial API ────────────────────────────────────────────────────
     let serialPort   = null;
     let serialReader = null;
+    let serialWriter = null;
     let availablePorts = [];
-    const statusEl = document.getElementById('serial-status');
-    const selPort  = document.getElementById('sel-port');
+    const statusEl  = document.getElementById('serial-status');
+    const selPort   = document.getElementById('sel-port');
+    const coordsEl  = document.getElementById('pen-coords');
+    const te        = new TextEncoder();
+
+    function penWrite(text) {
+      if (!serialWriter) return;
+      serialWriter.write(te.encode(text)).catch(() => {});
+    }
 
     function setSerialStatus(cls, text) {
       statusEl.className   = cls;
@@ -339,6 +357,8 @@
       } catch (e) {
         // cancelled or port closed
       } finally {
+        try { serialWriter?.releaseLock(); } catch {}
+        serialWriter = null;
         try { serialReader.releaseLock(); } catch {}
         serialReader  = null;
         state.fingerA = false;
@@ -362,6 +382,7 @@
       serialPort = port;
       try {
         await serialPort.open({ baudRate: 115200 });
+        try { serialWriter = serialPort.writable.getWriter(); } catch(e) {}
         readSerial();
       } catch (e) {
         serialPort = null;
@@ -619,6 +640,16 @@
         // ── Pen dot ───────────────────────────
         p.noStroke(); p.fill(255, 255, 255, 220);
         p.circle(penX, penY, 5);
+
+        // ── Pen coordinates output (20Hz) ────
+        if (p.frameCount % 3 === 0) {
+          const normX = (penX - LX) / LR;
+          const normY = (penY - LY) / LR;
+          const xs = (normX >= 0 ? '+' : '') + normX.toFixed(3);
+          const ys = (normY >= 0 ? '+' : '') + normY.toFixed(3);
+          coordsEl.textContent = `x ${xs}   y ${ys}`;
+          penWrite(`/pen/x ${normX.toFixed(4)}\n/pen/y ${normY.toFixed(4)}\n`);
+        }
       };
     });
   </script>
