@@ -1,10 +1,20 @@
 /*
- * Dual Pulse Sensor - ESP32 (v2.3)
+ * Dual Pulse Sensor - ESP32 (v2.4)
  *
- * Beat detection 改為三段式：
- *   1. 等待手指（WAITING）
- *   2. 校準期 3 秒（CALIBRATING）— 收集 baseline 和 amplitude
- *   3. 運作（RUNNING）— threshold = baseline + amplitude * THRESH_RATIO
+ * v2.4 修正：手指偵測改為「脈動振幅」而非絕對值門檻。
+ *   原本 FINGER_THRESH = 300，但兩顆感測器靜止值都在 1800 左右，
+ *   導致系統永遠誤判為「有手指」，/finger 參數完全失效。
+ *
+ *   新作法：用包絡線追蹤 envHigh / envLow，
+ *   計算 pulsatile amplitude = envHigh - envLow。
+ *   有手指 → 有心跳脈衝 → 振幅 > FINGER_AMP_THRESH
+ *   沒手指 → 訊號穩定接近直流 → 振幅趨近 0
+ *   這樣不管 DC 偏移多高都能正確偵測。
+ *
+ * 狀態機（三段式）：
+ *   1. WAITING     — 等待振幅夠大（手指放上）
+ *   2. CALIBRATING — 校準期 3 秒，收集 baseline 和 amplitude
+ *   3. RUNNING     — threshold = baseline + amplitude * THRESH_RATIO
  *      baseline 緩慢跟蹤 DC 漂移（tau ≈ 5 秒）
  *
  * 輸出：
@@ -40,17 +50,30 @@ public:
   // 狀態機
   enum State { WAITING, CALIBRATING, RUNNING } state = WAITING;
 
-  // 平滑
-  float smoothed    = 0;
-  float SLIDE       = 8.0;   // 500Hz 下 ≈ 16ms，壓雜訊
+  // 平滑（低通濾波）
+  float smoothed = 0;
+  const float SLIDE = 8.0;   // 500Hz 下 ≈ 16ms
 
-  // 手指偵測
-  bool  fingerOn    = false;
-  const int FINGER_THRESH = 300;
+  // ── 包絡線手指偵測（v2.4 新增）────────────────
+  // envHigh / envLow 追蹤訊號的上下包絡線
+  // 快速跟上（ENV_RISE）、緩慢衰退（ENV_FALL）
+  // 脈動振幅 = envHigh - envLow
+  float envHigh = 2048;
+  float envLow  = 2048;
+  const float ENV_RISE = 0.15;   // 快：約 7 samples ≈ 14ms 跟上峰值
+  const float ENV_FALL = 0.002;  // 慢：tau ≈ 500 samples ≈ 1 秒
+  // 判斷有手指的最小脈動振幅（ADC counts）
+  // 靜止雜訊 < 10，心跳脈衝通常 50–300+
+  const int FINGER_AMP_THRESH = 35;
+  // 絕對底線：低於此值代表 ADC 完全沒訊號（斷線或未接）
+  const int SIG_FLOOR = 50;
+
+  // 手指狀態
+  bool fingerOn = false;
 
   // 校準
   unsigned long calibStartMs = 0;
-  const int     CALIB_MS     = 3000;  // 3 秒校準期
+  const int     CALIB_MS     = 3000;
   long          calibSum     = 0;
   int           calibCount   = 0;
   int           calibPeak    = 0;
@@ -59,22 +82,19 @@ public:
   float baseline   = 0;
   int   amplitude  = 0;
   int   threshold  = 2048;
-  // threshold = baseline + amplitude * THRESH_RATIO
-  // 0.4 表示峰值往上 40% 才觸發，可依訊號調整
-  const float THRESH_RATIO = 0.40;
-  // baseline 跟蹤速度：alpha = 1/2500 ≈ 5 秒 tau at 500Hz
-  const float BASELINE_ALPHA = 0.0004;
+  const float THRESH_RATIO   = 0.40;
+  const float BASELINE_ALPHA = 0.0004;  // tau ≈ 5s at 500Hz
 
   // Beat 偵測
-  bool          armed       = true;
-  bool          pulse       = false;
-  unsigned long lastBeatMs  = 0;
-  int           bpm         = 0;
-  const int     REFRACTORY  = 350;    // ms，對應 max ~171 BPM
-  const int     BEAT_GATE   = 200;    // ms，beat ON 持續時間
+  bool          armed      = true;
+  bool          pulse      = false;
+  unsigned long lastBeatMs = 0;
+  int           bpm        = 0;
+  const int     REFRACTORY = 350;   // ms，對應 max ~171 BPM
+  const int     BEAT_GATE  = 200;   // ms，beat ON 持續時間
 
   // Raw 輸出節流（100Hz）
-  unsigned long lastRawMs   = 0;
+  unsigned long lastRawMs = 0;
 
   PulseSensor(int p, String pfx) : pin(p), prefix(pfx) {}
 
@@ -82,21 +102,38 @@ public:
   void update(int raw, unsigned long nowMs) {
 
     // ── 平滑 ────────────────────────────────────
-    if (smoothed < 1 || raw < FINGER_THRESH) {
+    if (smoothed < 1 || raw < SIG_FLOOR) {
       smoothed = raw;
+      // 訊號完全消失時同步重置包絡線
+      envHigh = raw;
+      envLow  = raw;
     } else {
       smoothed += (raw - smoothed) / SLIDE;
     }
     int sig = (int)smoothed;
 
+    // ── 包絡線更新 ───────────────────────────────
+    // 向上：快速跟上峰值；向下：緩慢衰退
+    if (sig > envHigh) envHigh += (sig - envHigh) * ENV_RISE;
+    else               envHigh -= (envHigh - sig) * ENV_FALL;
+
+    // 向下：快速跟上谷值；向上：緩慢衰退
+    if (sig < envLow)  envLow  += (sig - envLow)  * ENV_RISE;
+    else               envLow  -= (envLow  - sig)  * ENV_FALL;
+
+    int envAmp   = (int)(envHigh - envLow);
+    bool hasFingerSignal = (sig > SIG_FLOOR) && (envAmp > FINGER_AMP_THRESH);
+
     // ── 手指偵測 ─────────────────────────────────
-    if (sig < FINGER_THRESH) {
+    if (!hasFingerSignal) {
       if (fingerOn) {
         fingerOn = false;
         send(prefix + "/finger", 0);
-        // 手指拿掉 → 重置狀態
-        state     = WAITING;
-        armed     = true;
+        state = WAITING;
+        armed = true;
+        // 包絡線歸零，避免殘留振幅影響下次偵測
+        envHigh = sig;
+        envLow  = sig;
         if (pulse) {
           pulse = false;
           send(prefix + "/beat", 0);
@@ -108,33 +145,31 @@ public:
       if (!fingerOn) {
         fingerOn = true;
         send(prefix + "/finger", 1);
-        // 重新進入校準
-        state       = CALIBRATING;
+        state        = CALIBRATING;
         calibStartMs = nowMs;
-        calibSum    = 0;
-        calibCount  = 0;
-        calibPeak   = sig;
+        calibSum     = 0;
+        calibCount   = 0;
+        calibPeak    = sig;
         Serial.print(prefix); Serial.println(" calibrating...");
       }
     }
 
     // ── 校準期 ───────────────────────────────────
     if (state == CALIBRATING) {
-      calibSum  += sig;
+      calibSum += sig;
       calibCount++;
       if (sig > calibPeak) calibPeak = sig;
 
       if (nowMs - calibStartMs >= CALIB_MS) {
         baseline  = (float)calibSum / calibCount;
         amplitude = calibPeak - (int)baseline;
-        amplitude = max(amplitude, 40);          // 最小振幅保護
+        amplitude = max(amplitude, 40);
         threshold = (int)(baseline + amplitude * THRESH_RATIO);
         state     = RUNNING;
         send(prefix + "/thresh", threshold);
         Serial.print(prefix);
-        Serial.print(" calibrated: baseline=");
-        Serial.print((int)baseline);
-        Serial.print(" amp="); Serial.print(amplitude);
+        Serial.print(" calibrated: baseline="); Serial.print((int)baseline);
+        Serial.print(" amp=");    Serial.print(amplitude);
         Serial.print(" thresh="); Serial.println(threshold);
       }
       sendRaw(sig, nowMs);
@@ -142,10 +177,9 @@ public:
     }
 
     // ── 運作中：緩慢跟蹤 baseline ───────────────
-    // 只在訊號低於 threshold 時更新（避免峰值拉高 baseline）
     if (sig < threshold) {
-      baseline += (sig - baseline) * BASELINE_ALPHA;
-      threshold = (int)(baseline + amplitude * THRESH_RATIO);
+      baseline  += (sig - baseline) * BASELINE_ALPHA;
+      threshold  = (int)(baseline + amplitude * THRESH_RATIO);
     }
 
     // ── Beat 偵測 ────────────────────────────────
@@ -163,7 +197,7 @@ public:
         pulse      = true;
         lastBeatMs = nowMs;
         send(prefix + "/beat", 1);
-        if (interval > REFRACTORY && interval < 2000) {
+        if (interval < 2000) {
           bpm = 60000 / interval;
           if (bpm > 30) send(prefix + "/bpm", bpm);
         }
@@ -201,7 +235,7 @@ PulseSensor sensorB(PIN_SENSOR_B, "/pulse/userB");
 void setup() {
   Serial.begin(115200);
   delay(500);
-  Serial.println("=== Dual Pulse Sensor v2.3 ===");
+  Serial.println("=== Dual Pulse Sensor v2.4 ===");
 
   analogSetPinAttenuation(PIN_SENSOR_A, ADC_11db);
   analogSetPinAttenuation(PIN_SENSOR_B, ADC_11db);
