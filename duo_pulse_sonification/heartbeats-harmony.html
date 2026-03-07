@@ -40,9 +40,9 @@
       gap: 2px;
     }
 
-    .lbl { font-size: 8px; letter-spacing: 3px; opacity: 0.4; text-transform: uppercase; }
-    .val { font-size: 34px; line-height: 1.1; }
-    .sub { font-size: 8px; letter-spacing: 1px; opacity: 0.28; min-height: 12px; }
+    .lbl { font-size: 10px; letter-spacing: 3px; opacity: 0.7; text-transform: uppercase; }
+    .val { font-size: 34px; line-height: 1.1; color: #cccccc; }
+    .sub { font-size: 9px; letter-spacing: 1px; opacity: 0.45; min-height: 12px; }
 
     .divider {
       width: 1px;
@@ -126,7 +126,7 @@
       transition: opacity 0.15s;
     }
     button:hover { opacity: 0.9; }
-    #ratio { font-size: 9px; letter-spacing: 2px; opacity: 0.22; }
+    #ratio { font-size: 9px; letter-spacing: 2px; opacity: 0.45; }
 
     #serial-status {
       font-size: 8px;
@@ -162,6 +162,29 @@
     }
     select:hover, select:focus { opacity: 0.9; outline: none; }
     select option { background: #000000; color: #888888; }
+
+    .finger-toggle {
+      font-family: 'Courier New', monospace;
+      font-size: 9px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      background: none;
+      border: 1px solid #333;
+      color: #555;
+      padding: 4px 10px;
+      cursor: pointer;
+      opacity: 0.6;
+      transition: all 0.3s;
+    }
+    .ctrl.inactive .val { opacity: 0.25; }
+    .ctrl.inactive .sub { opacity: 0.15; }
+    .ctrl.inactive input[type=range] { opacity: 0.2; pointer-events: none; }
+
+    .finger-toggle.on {
+      border-color: #88cc44;
+      color: #88cc44;
+      opacity: 0.9;
+    }
   </style>
 </head>
 <body>
@@ -210,6 +233,8 @@
   </div>
 
   <div id="footer">
+    <button id="btn-fa" class="finger-toggle on">A on</button>
+    <button id="btn-fb" class="finger-toggle on">B on</button>
     <div id="ratio">ratio —</div>
     <button id="btn-scan">Scan Port</button>
     <select id="sel-port"><option value="">— no port —</option></select>
@@ -224,8 +249,8 @@
       bpmB:    80,
       phase:   Math.PI / 4,
       fade:    0,
-      fingerA: false,
-      fingerB: false
+      fingerA: true,
+      fingerB: true
     };
     let needsClear = false;
 
@@ -239,14 +264,18 @@
 
     document.getElementById('sl-a').addEventListener('input', function() {
       state.bpmA = +this.value;
-      document.getElementById('val-a').textContent = this.value;
-      document.getElementById('hz-a').textContent = (state.bpmA/60).toFixed(2) + ' Hz';
+      if (state.fingerA) {
+        document.getElementById('val-a').textContent = this.value;
+        document.getElementById('hz-a').textContent = (state.bpmA/60).toFixed(2) + ' Hz';
+      }
       updateRatio();
     });
     document.getElementById('sl-b').addEventListener('input', function() {
       state.bpmB = +this.value;
-      document.getElementById('val-b').textContent = this.value;
-      document.getElementById('hz-b').textContent = (state.bpmB/60).toFixed(2) + ' Hz';
+      if (state.fingerB) {
+        document.getElementById('val-b').textContent = this.value;
+        document.getElementById('hz-b').textContent = (state.bpmB/60).toFixed(2) + ' Hz';
+      }
       updateRatio();
     });
     document.getElementById('sl-phase').addEventListener('input', function() {
@@ -266,6 +295,37 @@
     });
     document.getElementById('btn-clear').addEventListener('click', () => {
       needsClear = true;
+    });
+
+    // ── Finger toggle buttons (simulation) ──────────────────────────────
+    const btnFa = document.getElementById('btn-fa');
+    const btnFb = document.getElementById('btn-fb');
+
+    // 上方控制區的 DOM 參照
+    const ctrlA = document.getElementById('sl-a').closest('.ctrl');
+    const ctrlB = document.getElementById('sl-b').closest('.ctrl');
+
+    function updateFingerBtn(btn, key, on) {
+      state[key] = on;
+      btn.classList.toggle('on', on);
+      if (key === 'fingerA') {
+        btn.textContent = on ? 'A on' : 'A off';
+        ctrlA.classList.toggle('inactive', !on);
+        document.getElementById('val-a').textContent = on ? state.bpmA : '—';
+        document.getElementById('hz-a').textContent  = on ? (state.bpmA / 60).toFixed(2) + ' Hz' : '';
+      } else {
+        btn.textContent = on ? 'B on' : 'B off';
+        ctrlB.classList.toggle('inactive', !on);
+        document.getElementById('val-b').textContent = on ? state.bpmB : '—';
+        document.getElementById('hz-b').textContent  = on ? (state.bpmB / 60).toFixed(2) + ' Hz' : '';
+      }
+    }
+
+    btnFa.addEventListener('click', () => {
+      updateFingerBtn(btnFa, 'fingerA', !state.fingerA);
+    });
+    btnFb.addEventListener('click', () => {
+      updateFingerBtn(btnFb, 'fingerB', !state.fingerB);
     });
 
     // ── Web Serial API ────────────────────────────────────────────────────
@@ -291,8 +351,8 @@
     // 在 Max patch 中：[prepend script setMaxBpmA] → [jweb]
     function setMaxBpmA(v)    { applyBpmA(v); }
     function setMaxBpmB(v)    { applyBpmB(v); }
-    function setMaxFingerA(v) { state.fingerA = (v === 1); }
-    function setMaxFingerB(v) { state.fingerB = (v === 1); }
+    function setMaxFingerA(v) { updateFingerBtn(btnFa, 'fingerA', v === 1); }
+    function setMaxFingerB(v) { updateFingerBtn(btnFb, 'fingerB', v === 1); }
     function setMaxBeatA()    { state.triggerBeatA = true; }
     function setMaxBeatB()    { state.triggerBeatB = true; }
 
@@ -391,8 +451,8 @@
               else                  applyBpmB(val);
               setSerialStatus('connected', 'connected');
             } else if (type === 'finger') {
-              if (user === 'userA') state.fingerA = val === 1;
-              else                  state.fingerB = val === 1;
+              if (user === 'userA') updateFingerBtn(btnFa, 'fingerA', val === 1);
+              else                  updateFingerBtn(btnFb, 'fingerB', val === 1);
             } else if (type === 'beat' && val === 1) {
               // Trigger beat flash directly from real hardware beat
               if (user === 'userA') state.triggerBeatA = true;
@@ -405,8 +465,8 @@
       } finally {
         try { serialReader.releaseLock(); } catch {}
         serialReader  = null;
-        state.fingerA = false;
-        state.fingerB = false;
+        updateFingerBtn(btnFa, 'fingerA', false);
+        updateFingerBtn(btnFb, 'fingerB', false);
         setSerialStatus('', 'disconnected');
         selPort.value = '';
       }
@@ -472,9 +532,9 @@
 
     new p5(function(p) {
       const W = 720, H = 500;
-      const LX = W / 2, LY = 200, LR = 158;
-      const CA = { x: 92,  y: 400, r: 52 };
-      const CB = { x: 628, y: 400, r: 52 };
+      const LX = W / 2, LY = 195, LRX = 255, LRY = 125;
+      const CA = { x: 80,  y: 370, r: 48 };
+      const CB = { x: 640, y: 370, r: 48 };
 
       let pg1, pg2;
       let t = 0;
@@ -486,6 +546,8 @@
       let pulseB = { r: 0, a: 0 };
       let flashA = 0;   // beat flash brightness, 0–255
       let flashB = 0;
+      let ampX = 1;     // x-axis amplitude, 0 (no fingerA) → 1 (fingerA active)
+      let ampY = 1;     // y-axis amplitude, 0 (no fingerB) → 1 (fingerB active)
 
       p.setup = function() {
         const cv = p.createCanvas(W, H);
@@ -509,12 +571,18 @@
           pulseA = { r: 0, a: 0 };
           pulseB = { r: 0, a: 0 };
           flashA = 0; flashB = 0;
+          ampX = 0; ampY = 0;
           needsClear = false;
         }
 
         const dt    = Math.min(p.deltaTime / 1000, 0.05);
         const freqA = state.bpmA / 60;
         const freqB = state.bpmB / 60;
+
+        // ── Amplitude envelope (finger on/off → smooth fade) ────────
+        const smoothing = 1 - Math.exp(-dt / 1.2);  // ~2-3s transition
+        ampX += (( state.fingerA ? 1.0 : 0.0 ) - ampX) * smoothing;
+        ampY += (( state.fingerB ? 1.0 : 0.0 ) - ampY) * smoothing;
 
         // ── Step 1: Fade ──────────────────────────────────────────────
         pg2.background(0);
@@ -536,8 +604,8 @@
 
         for (let s = 0; s < SUB; s++) {
           const ts = t + s * (dt / SUB);
-          const x  = LX + LR * Math.sin(freqA * ts * p.TWO_PI);
-          const y  = LY + LR * Math.sin(freqB * ts * p.TWO_PI + state.phase);
+          const x  = LX + LRX * Math.sin(freqA * ts * p.TWO_PI) * ampX;
+          const y  = LY + LRY * Math.sin(freqB * ts * p.TWO_PI + state.phase) * ampY;
 
           for (let i = 0; i < 12; i++) {
             const ox = p.randomGaussian(0, 1.5);
@@ -555,18 +623,18 @@
         // ── Step 3: Swap buffers ──────────────────────────────────────
         [pg1, pg2] = [pg2, pg1];
 
-        const penX = LX + LR * Math.sin(freqA * t * p.TWO_PI);
-        const penY = LY + LR * Math.sin(freqB * t * p.TWO_PI + state.phase);
+        const penX = LX + LRX * Math.sin(freqA * t * p.TWO_PI) * ampX;
+        const penY = LY + LRY * Math.sin(freqB * t * p.TWO_PI + state.phase) * ampY;
         t += dt;
 
         // ── Step 4: Beat detect (simulated from angle, or real from serial) ──
         prevAngleA = angleA;
         prevAngleB = angleB;
-        angleA += freqA * dt * p.TWO_PI;
-        angleB += freqB * dt * p.TWO_PI;
+        if (state.fingerA) angleA += freqA * dt * p.TWO_PI;
+        if (state.fingerB) angleB += freqB * dt * p.TWO_PI;
 
-        const beatA = (angleA % p.TWO_PI) < (prevAngleA % p.TWO_PI) || state.triggerBeatA;
-        const beatB = (angleB % p.TWO_PI) < (prevAngleB % p.TWO_PI) || state.triggerBeatB;
+        const beatA = state.fingerA && ((angleA % p.TWO_PI) < (prevAngleA % p.TWO_PI) || state.triggerBeatA);
+        const beatB = state.fingerB && ((angleB % p.TWO_PI) < (prevAngleB % p.TWO_PI) || state.triggerBeatB);
         state.triggerBeatA = false;
         state.triggerBeatB = false;
 
@@ -589,17 +657,29 @@
         // ── Step 5: Render ────────────────────────────────────────────
         p.image(pg1, 0, 0);
 
-        // Connection lines (dashed)
-        p.drawingContext.setLineDash([3, 6]);
-        p.stroke(255, 255, 255, 40);
-        p.strokeWeight(1);
-        p.noFill();
-        p.line(dotAX, dotAY, penX, penY);
-        p.line(dotBX, dotBY, penX, penY);
-        p.drawingContext.setLineDash([]);
+        // Connection lines (glow + dashed) — only show when finger active
+        if (ampX > 0.01 || ampY > 0.01) {
+          p.drawingContext.shadowBlur  = 8;
+          p.drawingContext.shadowColor = 'rgba(255, 255, 255, 0.3)';
+          p.drawingContext.setLineDash([4, 5]);
+          p.noFill();
+          if (ampX > 0.01) {
+            p.stroke(255, 255, 255, 90 * ampX);
+            p.strokeWeight(1.2);
+            p.line(dotAX, dotAY, penX, penY);
+          }
+          if (ampY > 0.01) {
+            p.stroke(255, 255, 255, 90 * ampY);
+            p.strokeWeight(1.2);
+            p.line(dotBX, dotBY, penX, penY);
+          }
+          p.drawingContext.setLineDash([]);
+          p.drawingContext.shadowBlur = 0;
+        }
 
         // ── Circle A ─────────────────────────
-        // Beat flash: filled white circle fades quickly
+        const oA = state.fingerA ? 1.0 : 0.2;  // opacity multiplier
+
         if (flashA > 0) {
           p.noStroke();
           p.fill(255, 255, 255, flashA * 0.65);
@@ -607,8 +687,8 @@
         }
 
         p.noFill();
-        p.stroke(255, 255, 255, 50);
-        p.strokeWeight(1);
+        p.stroke(255, 255, 255, 80 * oA);
+        p.strokeWeight(1.2);
         p.circle(CA.x, CA.y, CA.r * 2);
 
         if (pulseA.a > 0) {
@@ -618,29 +698,37 @@
           p.circle(CA.x, CA.y, pulseA.r * 2);
         }
 
-        p.stroke(255, 255, 255, 35);
-        p.strokeWeight(0.8);
-        p.line(CA.x, CA.y, dotAX, dotAY);
+        if (state.fingerA) {
+          p.stroke(255, 255, 255, 55);
+          p.strokeWeight(0.8);
+          p.line(CA.x, CA.y, dotAX, dotAY);
 
-        p.noStroke(); p.fill(255, 255, 255, 70);
-        p.circle(CA.x, CA.y, 4);
+          p.noStroke(); p.fill(255, 255, 255, 100);
+          p.circle(CA.x, CA.y, 4);
 
-        p.noStroke(); p.fill(255, 255, 255, 210);
-        p.circle(dotAX, dotAY, 8);
+          p.noStroke(); p.fill(255, 255, 255, 230);
+          p.circle(dotAX, dotAY, 8);
+        } else {
+          p.noStroke(); p.fill(255, 255, 255, 25);
+          p.circle(CA.x, CA.y, 4);
+        }
 
-        p.fill(255, 255, 255, 65);
         p.noStroke();
         p.textFont('Courier New');
-        p.textSize(8);
         p.textAlign(p.CENTER);
-        p.text('HEART  A', CA.x, CA.y + CA.r + 15);
-        p.text(state.bpmA + ' BPM', CA.x, CA.y + CA.r + 26);
-        // Finger indicator: dim = no finger, bright = finger on
+        p.fill(255, 255, 255, 160 * oA);
+        p.textSize(10);
+        p.text('HEART  A', CA.x, CA.y + CA.r + 16);
+        p.fill(255, 255, 255, 120 * oA);
+        p.textSize(9);
+        p.text(state.fingerA ? state.bpmA + ' BPM' : '— —', CA.x, CA.y + CA.r + 28);
         p.noStroke();
         p.fill(255, 255, 255, state.fingerA ? 220 : 30);
-        p.circle(CA.x, CA.y + CA.r + 38, 4);
+        p.circle(CA.x, CA.y + CA.r + 40, 5);
 
         // ── Circle B ─────────────────────────
+        const oB = state.fingerB ? 1.0 : 0.2;
+
         if (flashB > 0) {
           p.noStroke();
           p.fill(255, 255, 255, flashB * 0.65);
@@ -648,8 +736,8 @@
         }
 
         p.noFill();
-        p.stroke(255, 255, 255, 50);
-        p.strokeWeight(1);
+        p.stroke(255, 255, 255, 80 * oB);
+        p.strokeWeight(1.2);
         p.circle(CB.x, CB.y, CB.r * 2);
 
         if (pulseB.a > 0) {
@@ -659,39 +747,46 @@
           p.circle(CB.x, CB.y, pulseB.r * 2);
         }
 
-        p.stroke(255, 255, 255, 35);
-        p.strokeWeight(0.8);
-        p.line(CB.x, CB.y, dotBX, dotBY);
+        if (state.fingerB) {
+          p.stroke(255, 255, 255, 55);
+          p.strokeWeight(0.8);
+          p.line(CB.x, CB.y, dotBX, dotBY);
 
-        p.noStroke(); p.fill(255, 255, 255, 70);
-        p.circle(CB.x, CB.y, 4);
+          p.noStroke(); p.fill(255, 255, 255, 100);
+          p.circle(CB.x, CB.y, 4);
 
-        p.noStroke(); p.fill(255, 255, 255, 210);
-        p.circle(dotBX, dotBY, 8);
+          p.noStroke(); p.fill(255, 255, 255, 230);
+          p.circle(dotBX, dotBY, 8);
+        } else {
+          p.noStroke(); p.fill(255, 255, 255, 25);
+          p.circle(CB.x, CB.y, 4);
+        }
 
-        p.fill(255, 255, 255, 65);
         p.noStroke();
         p.textFont('Courier New');
-        p.textSize(8);
         p.textAlign(p.CENTER);
-        p.text('HEART  B', CB.x, CB.y + CB.r + 15);
-        p.text(state.bpmB + ' BPM', CB.x, CB.y + CB.r + 26);
+        p.fill(255, 255, 255, 160 * oB);
+        p.textSize(10);
+        p.text('HEART  B', CB.x, CB.y + CB.r + 16);
+        p.fill(255, 255, 255, 120 * oB);
+        p.textSize(9);
+        p.text(state.fingerB ? state.bpmB + ' BPM' : '— —', CB.x, CB.y + CB.r + 28);
         p.noStroke();
         p.fill(255, 255, 255, state.fingerB ? 220 : 30);
-        p.circle(CB.x, CB.y + CB.r + 38, 4);
+        p.circle(CB.x, CB.y + CB.r + 40, 5);
 
         // ── Pen dot ───────────────────────────
         p.noStroke(); p.fill(255, 255, 255, 220);
         p.circle(penX, penY, 5);
 
-        // ── Pen coordinates output (20Hz) ────
+        // ── Pen coordinates output (every frame ~60Hz) ────
+        const normX = (penX - LX) / LRX;
+        const normY = (penY - LY) / LRY;
+        penWrite(`/pen/x ${normX.toFixed(4)}\n/pen/y ${normY.toFixed(4)}\n`);
         if (p.frameCount % 3 === 0) {
-          const normX = (penX - LX) / LR;
-          const normY = (penY - LY) / LR;
           const xs = (normX >= 0 ? '+' : '') + normX.toFixed(3);
           const ys = (normY >= 0 ? '+' : '') + normY.toFixed(3);
           coordsEl.textContent = `x ${xs}   y ${ys}`;
-          penWrite(`/pen/x ${normX.toFixed(4)}\n/pen/y ${normY.toFixed(4)}\n`);
         }
       };
     });

@@ -78,6 +78,8 @@
                     "outlettype": [ "signal", "signal", "", "float", "list" ],
                     "parameter_enable": 1,
                     "patching_rect": [ 432.0, 856.0, 48.0, 136.0 ],
+                    "presentation": 1,
+                    "presentation_rect": [ 729.0, 360.0, 48.0, 136.0 ],
                     "saved_attribute_attributes": {
                         "valueof": {
                             "parameter_longname": "live.gain~",
@@ -2498,7 +2500,7 @@
                     "numinlets": 1,
                     "numoutlets": 5,
                     "outlettype": [ "float", "float", "float", "float", "int" ],
-                    "patching_rect": [ 31.0, 608.0, 159.0, 22.0 ],
+                    "patching_rect": [ 31.0, 620.0, 159.0, 22.0 ],
                     "text": "unpack f f f f i"
                 }
             },
@@ -2520,7 +2522,6 @@
                         },
                         "classnamespace": "box",
                         "rect": [ 753.0, 93.0, 557.0, 713.0 ],
-                        "visible": 1,
                         "boxes": [
                             {
                                 "box": {
@@ -5392,7 +5393,7 @@
                     "numinlets": 1,
                     "numoutlets": 1,
                     "outlettype": [ "bang" ],
-                    "patching_rect": [ 172.0, 60.0, 58.0, 22.0 ],
+                    "patching_rect": [ 172.0, 39.0, 58.0, 22.0 ],
                     "text": "loadbang"
                 }
             },
@@ -5403,7 +5404,7 @@
                     "numinlets": 1,
                     "numoutlets": 1,
                     "outlettype": [ "" ],
-                    "patching_rect": [ 31.0, 102.0, 126.0, 22.0 ],
+                    "patching_rect": [ 31.0, 81.0, 126.0, 22.0 ],
                     "text": "prepend setHandData"
                 }
             },
@@ -5414,7 +5415,7 @@
                     "numinlets": 2,
                     "numoutlets": 2,
                     "outlettype": [ "", "" ],
-                    "patching_rect": [ 31.0, 60.0, 69.0, 22.0 ],
+                    "patching_rect": [ 31.0, 39.0, 69.0, 22.0 ],
                     "text": "route /hand"
                 }
             },
@@ -5425,7 +5426,7 @@
                     "numinlets": 2,
                     "numoutlets": 1,
                     "outlettype": [ "" ],
-                    "patching_rect": [ 172.0, 102.0, 127.0, 22.0 ],
+                    "patching_rect": [ 172.0, 81.0, 127.0, 22.0 ],
                     "text": "readfile visualizer.html"
                 }
             },
@@ -5437,7 +5438,9 @@
                     "numinlets": 1,
                     "numoutlets": 1,
                     "outlettype": [ "" ],
-                    "patching_rect": [ 68.80000102519989, 147.20000219345093, 633.0, 424.0 ],
+                    "patching_rect": [ 31.0, 123.0, 704.0, 470.0 ],
+                    "presentation": 1,
+                    "presentation_rect": [ 18.0, 26.0, 704.0, 470.0 ],
                     "rendermode": 0,
                     "url": "file://visualizer.html"
                 }
@@ -5449,7 +5452,7 @@
                     "numinlets": 1,
                     "numoutlets": 1,
                     "outlettype": [ "" ],
-                    "patching_rect": [ 31.0, 27.0, 97.0, 22.0 ],
+                    "patching_rect": [ 31.0, 6.0, 97.0, 22.0 ],
                     "text": "udpreceive 8000"
                 }
             }
@@ -5923,14 +5926,6 @@
             "obj-54": [ "live.gain~[3]", "live.gain~", 0 ],
             "obj-58": [ "live.gain~[4]", "live.gain~", 0 ],
             "obj-5::obj-27": [ "live.gain~[2]", "live.gain~", 0 ],
-            "parameterbanks": {
-                "0": {
-                    "index": 0,
-                    "name": "",
-                    "parameters": [ "-", "-", "-", "-", "-", "-", "-", "-" ],
-                    "buttons": [ "-", "-", "-", "-", "-", "-", "-", "-" ]
-                }
-            },
             "inherited_shortname": 1
         },
         "autosave": 0
