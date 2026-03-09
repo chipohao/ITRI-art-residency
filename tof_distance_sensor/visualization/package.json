@@ -1,0 +1,5 @@
+{
+  "name": "tof-visualization",
+  "version": "1.0.0",
+  "description": "VL53L0X ToF trajectory visualization — Node for Max (SSE, zero dependencies)"
+}
