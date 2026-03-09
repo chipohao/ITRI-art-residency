@@ -1,47 +1,139 @@
-# VL53L0X 雙 ToF 距離感測 — 優化版
+# VL53L0X 雙 ToF 距離感測模組
 
-ESP32 + 2x VL53L0X ToF 感測器，用於平面同動車 X/Y 軸手把追蹤。
-Serial 輸出 OSC 風格格式，可直接接入 MaxMSP。
+ESP32 + 2x VL53L0X ToF（Time-of-Flight）感測器，用於平面同動車 X/Y 軸手把追蹤。
+Serial 輸出 OSC 風格格式，可直接接入 Max/MSP。
+
+---
+
+## 韌體版本
+
+本模組包含三個韌體版本，依開發順序排列：
+
+| 目錄 | 板子 | 濾波 | 輸出格式 | 說明 |
+|------|------|------|----------|------|
+| `tof_noSmooth/` | ESP32 Dev Module | 無 | `x=N,Y=M` | 最早版本，原始距離直出 |
+| `tof_optimized/` | ESP32 Dev Module | Median + 自適應 EMA | `/tof fX fY rX rY` | 優化版，雙層濾波 |
+| **`tof_c3_supermini/`** | **ESP32-C3 SuperMini** | **Median + 自適應 EMA + Deadband** | **`/tof fX fY rX rY`** | **目前使用版本，三層濾波** |
+
+> `tof_c3_supermini` 和 `tof_optimized` 的 Serial 輸出格式完全相同，Max/MSP patch 不需要修改即可切換使用。
+
+---
 
 ## 硬體接線
 
+### ESP32-C3 SuperMini（目前使用）
+
 ```
-ESP32           VL53L0X #1 (X軸)    VL53L0X #2 (Y軸)
-─────           ────────────────    ────────────────
-GPIO 21 (SDA) ──── SDA ──────────── SDA
-GPIO 22 (SCL) ──── SCL ──────────── SCL
-3.3V ──────────── VIN ──────────── VIN
-GND ───────────── GND ──────────── GND
-GPIO 25 ───────── XSHUT
-GPIO 26 ──────────────────────────── XSHUT
+ESP32-C3 SuperMini    VL53L0X #1 (X軸)    VL53L0X #2 (Y軸)
+──────────────────    ────────────────    ────────────────
+GPIO 5 (SDA) ──────── SDA ──────────── SDA
+GPIO 6 (SCL) ──────── SCL ──────────── SCL
+3.3V ─────────────── VIN ──────────── VIN
+GND ──────────────── GND ──────────── GND
+GPIO 3 ──────────── XSHUT
+GPIO 4 ─────────────────────────────── XSHUT
+```
+
+### ESP32 Dev Module（舊版）
+
+```
+ESP32                 VL53L0X #1 (X軸)    VL53L0X #2 (Y軸)
+─────                 ────────────────    ────────────────
+GPIO 21 (SDA) ──────── SDA ──────────── SDA
+GPIO 22 (SCL) ──────── SCL ──────────── SCL
+3.3V ─────────────── VIN ──────────── VIN
+GND ──────────────── GND ──────────── GND
+GPIO 25 ──────────── XSHUT
+GPIO 26 ─────────────────────────────── XSHUT
 ```
 
 > 兩顆感測器共用 I2C 匯流排，透過 XSHUT 腳位依序啟動並重新分配地址（0x30, 0x31）。
+> VL53L0X 只能接 3.3V，不可接 5V。
 
-## 安裝依賴
+---
+
+## 安裝與燒錄
+
+### 安裝依賴
 
 在 Arduino IDE 中安裝：
 
-1. **Library Manager** → 搜尋 `Adafruit VL53L0X` → 安裝
-2. 同時會自動安裝 `Adafruit BusIO` 等依賴
+1. **Library Manager** → 搜尋 `Adafruit VL53L0X` → 安裝（會自動安裝 `Adafruit BusIO` 等依賴）
 
-Board 選擇 ESP32 Dev Module。
+### Board 設定
 
-## 校正流程
+**ESP32-C3 SuperMini（`tof_c3_supermini`）：**
 
-1. 上電後自動進入校正：
-   - **前 500ms**：暖機（丟棄讀數）
-   - **接下來 5 秒**：收集樣本，請將手把放在**原點位置**不動
-2. 校正以收集樣本的**中位數**作為 offset（比最小值更抗雜訊）
-3. 校正完成後自動進入正常量測模式
+| 設定項目 | 值 |
+|----------|-----|
+| Board | ESP32C3 Dev Module |
+| USB CDC On Boot | **Enabled**（必須，否則 Serial Monitor 無輸出） |
+| Partition Scheme | Default 4MB with spiffs |
+
+**ESP32 Dev Module（`tof_optimized` / `tof_noSmooth`）：**
+
+| 設定項目 | 值 |
+|----------|-----|
+| Board | ESP32 Dev Module |
+
+---
+
+## 運作流程
+
+上電後自動進入三階段狀態機：
+
+```
+┌─────────┐     500ms     ┌──────────────┐     5 秒      ┌─────────┐
+│  暖機   │ ────────────→ │    校正      │ ────────────→ │  運行   │
+│ WARMUP  │  丟棄不穩讀數  │ CALIBRATING  │  收集中位數    │ RUNNING │
+└─────────┘               └──────────────┘               └─────────┘
+```
+
+### 校正
+
+1. **暖機（500ms）**：丟棄開機後不穩定的讀數
+2. **校正（5 秒）**：收集有效樣本，取**中位數**作為零點 offset
+   - 校正期間請將手把放在**原點位置**不動
+   - 中位數比最小值更抗雜訊
+3. **運行**：開始輸出濾波後的距離值
 
 ### 重新校正
 
-透過 Serial 發送字元 `c` 即可重新觸發校正流程。
+透過 Serial 發送字元 `c` 即可重新觸發校正（不需拔線重開機）。
 
-## Serial 輸出格式（OSC 風格）
+---
+
+## 三層濾波機制（`tof_c3_supermini`）
+
+```
+感測器原始讀值 → 歸零(減 offset) → ① Median → ② 自適應 EMA → ③ Deadband → 輸出
+```
+
+### ① Median 濾波（殺突波）
+
+- 窗口大小 = 3，對最近 3 筆取中位數
+- 感測器偶爾跳一下（如 120→250→120），中位數會直接忽略 250 這個離群值
+- 比 EMA 更適合處理突波，因為 EMA 會被拉走好幾幀
+
+### ② 自適應 EMA（靜止穩、移動快）
+
+- 計算新值與目前 EMA 的差距，自動切換平滑係數：
+  - 差距 ≤ 10mm（靜止/緩動）→ alpha = 0.12（新值只佔 12%，非常平滑）
+  - 差距 > 10mm（快速移動）→ alpha = 0.6（新值佔 60%，快速跟手）
+- 比固定 alpha 好在：靜止時不抖、移動時不拖
+
+### ③ Deadband（鎖住微抖）
+
+- 濾波後的值與上次輸出相差 ≤ 3mm → 不更新，鎖住上次的值
+- 確保靜止時輸出完全不動
+
+---
+
+## Serial 輸出格式
 
 Baud rate: **115200**
+
+### 訊息格式（OSC 風格）
 
 | 訊息 | 說明 |
 |------|------|
@@ -52,57 +144,124 @@ Baud rate: **115200**
 | `/status filters_reset` | 濾波器已重置 |
 | `/error <message>` | 錯誤訊息 |
 
-## Serial 指令
+### `/tof` 四個數值的差別
+
+```
+/tof <fX> <fY> <rX> <rY>
+      ↑         ↑
+      濾波後     僅歸零、無濾波
+```
+
+| | filtered (fX, fY) | raw (rX, rY) |
+|---|---|---|
+| 歸零 | 有 | 有 |
+| Median + EMA + Deadband | 有 | 無 |
+| 用途 | **控制用**（接 Max 畫面/聲音） | **除錯用**（觀察原始值） |
+
+### Serial 指令
 
 | 指令 | 功能 |
 |------|------|
-| `c` | 重新校正（暖機 + 5秒收集） |
-| `r` | 重啟 EMA 濾波器（清除歷史，保留 offset） |
+| `c` | 重新校正（暖機 + 5 秒收集） |
+| `r` | 重啟濾波器（清除歷史，保留 offset） |
 
-## MaxMSP Patch 接線建議
+---
+
+## Max/MSP 接線
+
+### 基本接收鏈
 
 ```
-[serial /dev/cu.usbserial-XXXX 115200]
+[serial /dev/cu.usbmodem-XXXX 115200]    ← ESP32-C3 用 usbmodem，ESP32 用 usbserial
         |
-    [sel 10]          ← 以換行符號分割訊息
+    [sel 10]          ← 以換行符號 (ASCII 10) 分割訊息
         |
-   [fromsymbol]       ← 字串轉為 symbol list
+   [zl group]         ← 收集一行的 bytes
+        |
+     [itoa]           ← bytes → 字元
+        |
+   [fromsymbol]       ← 字串 → Max symbol list
         |
   [route /tof /status /cal_done /error]
      |      |         |          |
-[unpack 0 0 0 0]    ...        ...     ← /tof: filtered_x, filtered_y, raw_x, raw_y
-     |   |
-   [位移控制]
+[unpack i i i i]    ...        ...
+  |   |   |   |
+ fX  fY  rX  rY
 ```
 
-### 進階：分離 filtered 與 raw
+### 分離 filtered 與 raw
 
 ```
 [route /tof]
      |
 [unpack 0 0 0 0]
  |  |    |  |
- |  |  [pack 0 0] → raw_x raw_y（除錯用）
+ |  |  [pack 0 0] → raw_x raw_y（除錯用，不接也沒關係）
 [pack 0 0] → filtered_x filtered_y（控制用）
 ```
+
+### 映射到 GL 座標
+
+現有的 `tof_sensors.maxpat` 將 filtered 值映射為 -1.0 ~ 1.0：
+
+```
+filtered_x → [/ 360.] → [* 2.] → [- 1.] → x_gl (-1.0 ~ 1.0)
+filtered_y → [/ 320.] → [* 2.] → [- 1.] → y_gl (-1.0 ~ 1.0)
+```
+
+### Max/MSP Patch 檔案
+
+| Patch | 說明 |
+|-------|------|
+| `tof_sensors.maxpat` | Serial 接收 + 數值顯示 + GL 座標映射 + pictslider 視覺化 |
+| `tof_line_draw.maxpat` | 接收 GL 座標，用 `jit.gl.mesh` 畫連續線條，有拖尾消失效果 |
+
+---
 
 ## 參數調整
 
 在 `.ino` 檔案頂部可調整以下參數：
 
+### 感測器參數
+
 | 參數 | 預設值 | 說明 |
 |------|--------|------|
-| `TIMING_BUDGET_US` | 33000 (33ms) | 感測器量測時間。越大越精確但越慢 |
-| `EMA_ALPHA` | 0.3 | EMA 平滑係數。越大越跟手、越小越平滑 |
-| `MEDIAN_WINDOW` | 5 | 中位數濾波器視窗。越大越抗突波但延遲越高 |
-| `OUTPUT_INTERVAL_MS` | 20 | 輸出間隔（20ms = 50Hz） |
+| `TIMING_BUDGET_US` | 33000 (33ms) | 感測器量測時間，越大越精確但越慢 |
+| `OUTPUT_INTERVAL_MS` | 20 (50Hz) | 輸出間隔，不要低於 timing budget 的兩倍 |
 | `WARMUP_MS` | 500 | 暖機時間 |
 | `CALIB_MS` | 5000 | 校正收集時間 |
 | `RANGE_MAX` | 2000 | 有效量測範圍上限 (mm) |
 
+### 濾波參數
+
+| 參數 | 預設值 | 說明 |
+|------|--------|------|
+| `MEDIAN_WINDOW` | 3 | Median 窗口，越大越抗突波但延遲越高 |
+| `ALPHA_SLOW` | 0.12 | 靜止時 EMA 係數，越小越平滑 |
+| `ALPHA_FAST` | 0.6 | 移動時 EMA 係數，越大越跟手 |
+| `ADAPTIVE_THRESH` | 10.0 | 靜止/移動切換閾值 (mm) |
+| `DEAD_BAND_MM` | 3 | Deadband 門檻，低於此變化量不更新 |
+
 ### 調整建議
 
-- **手把反應太慢**：提高 `EMA_ALPHA`（如 0.5~0.8）、縮小 `MEDIAN_WINDOW`（如 3）
-- **輸出太抖**：降低 `EMA_ALPHA`（如 0.1~0.2）、加大 `MEDIAN_WINDOW`（如 7）
-- **感測器讀值不穩定**：加大 `TIMING_BUDGET_US`（如 50000）
-- **需要更高輸出速率**：縮小 `OUTPUT_INTERVAL_MS`（但不要低於 timing budget 的兩倍）
+| 你覺得... | 調什麼 |
+|-----------|--------|
+| 靜止時還在抖 | `DEAD_BAND_MM` 加大到 4~5 |
+| 手動了但反應太慢 | `ALPHA_FAST` 加大到 0.7~0.8 |
+| 移動中數值不夠滑順 | `ALPHA_FAST` 降到 0.4~0.5 |
+| 偶爾還有突波穿透 | `MEDIAN_WINDOW` 改成 5 |
+| 靜止↔移動切換太敏感 | `ADAPTIVE_THRESH` 加大到 15~20 |
+| 感測器讀值本身不穩 | `TIMING_BUDGET_US` 加大到 50000 |
+
+---
+
+## 疑難排解
+
+| 問題 | 可能原因 | 解法 |
+|------|----------|------|
+| Serial Monitor 無輸出 | ESP32-C3 未啟用 USB CDC | Tools → USB CDC On Boot → **Enabled**，重新燒錄 |
+| `/error sensor1_init_failed` | 感測器接線鬆脫或 I2C 腳位錯誤 | 檢查 SDA/SCL/XSHUT 接線與供電 |
+| 數值不動（一直是 0） | 校正時手把不在原點 | Serial 送 `c` 重新校正 |
+| Max 收不到資料 | Serial port 被 Arduino Serial Monitor 佔用 | 關閉 Serial Monitor 再開 Max |
+| Max 收到亂碼 | Baud rate 不對 | 確認 Max 的 serial object 設為 115200 |
+| 編譯失敗 `{build.partitions}` | Board 沒選對 | 選 ESP32C3 Dev Module，設好 Partition Scheme |
