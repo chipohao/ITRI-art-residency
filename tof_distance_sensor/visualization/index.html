@@ -49,7 +49,9 @@
   <div><span class="label">mode </span><span class="value" id="mode-label">Trail</span></div>
   <div><span class="label">fX </span><span class="value" id="v-fx">—</span>
        <span class="label"> fY </span><span class="value" id="v-fy">—</span></div>
-  <div><span class="label">vel </span><span class="value" id="v-vel">—</span></div>
+  <div><span class="label">vel </span><span class="value" id="v-vel">—</span><span class="label"> mm/s</span></div>
+  <div><span class="label">vX </span><span class="value" id="v-vx">—</span>
+       <span class="label"> vY </span><span class="value" id="v-vy">—</span></div>
   <div><span class="label">fps </span><span class="value" id="v-fps">—</span></div>
 </div>
 
@@ -77,6 +79,7 @@ const TRAIL_MAX = 300;
 const trail = []; // { fX, fY, vel } ← 存原始 mm 值，畫的時候再算 canvas 座標
 let prevX = null, prevY = null;
 let currentFX = 0, currentFY = 0, currentVel = 0;
+let currentVX = 0, currentVY = 0;  // ESP32 EMA-smoothed velocity (mm/s)
 
 // Heatmap grid
 const GRID = 80;
@@ -136,9 +139,12 @@ function clearAll() {
 }
 
 // ── Color helpers ──────────────────────────────────────────────
+// vel 單位：mm/s（ESP32 EMA-smoothed velocity）
+// 慢速 ≈ 0~100, 中速 ≈ 100~300, 快速 ≈ 300~600+
+const VEL_MAX = 500;  // mm/s，超過此值一律紅色
+
 function velToColor(vel, alpha) {
-  const maxVel = 30;
-  const t = Math.min(vel / maxVel, 1);
+  const t = Math.min(vel / VEL_MAX, 1);
   const hue = 200 - t * 200; // slow=blue(200) → fast=red(0)
   return `hsla(${hue}, 90%, 60%, ${alpha})`;
 }
@@ -166,22 +172,29 @@ function heatToRGB(val) {
 
 // ── Data ingestion ─────────────────────────────────────────────
 function onData(data) {
-  const { fX, fY } = data;
+  const { fX, fY, vX, vY } = data;
   currentFX = fX;
   currentFY = fY;
+  currentVX = vX || 0;
+  currentVY = vY || 0;
 
-  // Calculate velocity (mm/sample)
-  let vel = 0;
-  if (prevX !== null) {
+  // 速度大小（mm/s）— 用 ESP32 的 EMA-smoothed velocity
+  // 如果 ESP32 沒送速度，fallback 用 position delta
+  let vel;
+  if (vX !== undefined && vY !== undefined && (vX !== 0 || vY !== 0 || prevX === null)) {
+    vel = Math.sqrt(vX * vX + vY * vY);
+  } else if (prevX !== null) {
     const dx = fX - prevX;
     const dy = fY - prevY;
-    vel = Math.sqrt(dx * dx + dy * dy);
+    vel = Math.sqrt(dx * dx + dy * dy) * 50;  // mm/sample → mm/s (50Hz)
+  } else {
+    vel = 0;
   }
   currentVel = vel;
   prevX = fX;
   prevY = fY;
 
-  // Trail: 存原始 mm 值
+  // Trail: 存原始 mm 值 + 速度 mm/s
   trail.push({ fX, fY, vel });
   if (trail.length > TRAIL_MAX) trail.shift();
 
@@ -195,19 +208,24 @@ function onData(data) {
   // Y 全高：fY=0 → GRID-1（底部），fY=max → 0（頂部）
   const gy = Math.min(Math.floor((1 - normY) * (GRID - 1)), GRID - 1);
 
+  // 速度加權：快速移動 → 更多熱力、更大擴散
+  const velNorm = Math.min(vel / VEL_MAX, 1);
+  const velWeight = 1 + velNorm * 2;   // 靜止 1x，最快 3x 熱力
+  const velRadius = Math.round(HEAT_RADIUS + velNorm * 2);  // 靜止 3，最快 5 格擴散
+
   // 同時在兩邊累加熱力
-  addHeat(gxR, gy);
-  addHeat(gxL, gy);
+  addHeat(gxR, gy, velWeight, velRadius);
+  addHeat(gxL, gy, velWeight, velRadius);
 }
 
-function addHeat(gx, gy) {
-  for (let dy = -HEAT_RADIUS; dy <= HEAT_RADIUS; dy++) {
-    for (let dx = -HEAT_RADIUS; dx <= HEAT_RADIUS; dx++) {
+function addHeat(gx, gy, weight = 1, radius = HEAT_RADIUS) {
+  for (let dy = -radius; dy <= radius; dy++) {
+    for (let dx = -radius; dx <= radius; dx++) {
       const ix = gx + dx;
       const iy = gy + dy;
       if (ix >= 0 && ix < GRID && iy >= 0 && iy < GRID) {
         const dist = Math.sqrt(dx * dx + dy * dy);
-        const w = HEAT_ADD * Math.max(0, 1 - dist / (HEAT_RADIUS + 1));
+        const w = HEAT_ADD * weight * Math.max(0, 1 - dist / (radius + 1));
         heatmap[iy * GRID + ix] = Math.min(heatmap[iy * GRID + ix] + w, 1.2);
       }
     }
@@ -217,25 +235,31 @@ function addHeat(gx, gy) {
 // ── Helper: draw a trail segment on one side ──────────────────
 function drawSegment(x0, y0, x1, y1, vel, age) {
   const alpha = age * age * 0.9;
+  const velNorm = Math.min(vel / VEL_MAX, 1);
   ctx.beginPath();
   ctx.moveTo(x0, y0);
   ctx.lineTo(x1, y1);
   ctx.strokeStyle = velToColor(vel, alpha);
-  ctx.lineWidth = 1 + age * 2.5;
+  // 速度越快線條越粗：靜止 1px，最快 5px（再乘以 age 淡入）
+  ctx.lineWidth = (1 + velNorm * 4) * age;
   ctx.lineCap = 'round';
   ctx.stroke();
 }
 
 // ── Helper: draw a glowing dot ────────────────────────────────
 function drawDot(x, y, vel) {
-  const glow = 6 + vel * 0.5;
+  const velNorm = Math.min(vel / VEL_MAX, 1);
+  // 光暈隨速度變大：靜止 6px，最快 20px
+  const glow = 6 + velNorm * 14;
   ctx.beginPath();
   ctx.arc(x, y, glow, 0, Math.PI * 2);
-  ctx.fillStyle = velToColor(vel, 0.3);
+  ctx.fillStyle = velToColor(vel, 0.2 + velNorm * 0.2);
   ctx.fill();
 
+  // 中心白點也隨速度稍微變大
+  const core = 3 + velNorm * 2;
   ctx.beginPath();
-  ctx.arc(x, y, 3, 0, Math.PI * 2);
+  ctx.arc(x, y, core, 0, Math.PI * 2);
   ctx.fillStyle = '#fff';
   ctx.fill();
 }
@@ -382,7 +406,9 @@ function render() {
   // Update HUD
   document.getElementById('v-fx').textContent = currentFX;
   document.getElementById('v-fy').textContent = currentFY;
-  document.getElementById('v-vel').textContent = currentVel.toFixed(1);
+  document.getElementById('v-vel').textContent = currentVel.toFixed(0);
+  document.getElementById('v-vx').textContent = currentVX.toFixed(1);
+  document.getElementById('v-vy').textContent = currentVY.toFixed(1);
   document.getElementById('v-fps').textContent = fps;
 
   requestAnimationFrame(render);
