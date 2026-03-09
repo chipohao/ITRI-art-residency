@@ -4,8 +4,8 @@
  *
  * 相對於 tof_c3_supermini 的改動：
  *   1. 輸出增加 vX vY 兩個浮點數（mm/s，帶正負方向）
- *   2. 速度使用 EMA 平滑值（deadband 前）計算，避免階梯式跳動
- *   3. 速度本身再做一層 EMA 平滑
+ *   2. 速度從 fX/fY（deadband 後穩定值）計算 → 靜止時速度為 0
+ *   3. 速度做重度 EMA 平滑（VEL_SMOOTH = 0.06）→ 連續 ramp，不會跳動
  *   4. 新增 Serial 指令 'v' 可切換速度輸出開關
  *
  * ── 硬體接線（ESP32-C3 SuperMini）─────────────────────
@@ -83,7 +83,8 @@ const int DEAD_BAND_MM = 3;
 const int OUT_OF_RANGE = -1;
 
 // === 速度計算參數 ===
-const float VEL_SMOOTH = 0.35f;  // 速度 EMA 平滑係數（越小越滑順，越大越即時）
+const float VEL_SMOOTH = 0.06f;  // 速度 EMA 平滑係數（越小 ramp 越緩，越大越即時）
+                                  // 0.06 @ 50Hz ≈ 0.33s 達到 63% → 連續漸變不跳動
 const float DT = OUTPUT_INTERVAL_MS / 1000.0f;  // 每幀秒數（0.02s @ 50Hz）
 
 // === 感測器狀態 ===
@@ -114,7 +115,7 @@ int lastValidX = 0, lastValidY = 0;
 int lastRawX = 0, lastRawY = 0;
 
 // === 速度狀態 ===
-float prevEmaX = 0, prevEmaY = 0;  // 上一次輸出時的 EMA 值
+int prevFX = 0, prevFY = 0;  // 上一次輸出時的 fX/fY（deadband 後穩定值）
 bool velInited = false;
 float smoothVelX = 0, smoothVelY = 0;
 bool velEnabled = true;  // 速度輸出開關
@@ -180,6 +181,7 @@ void resetFilters() {
   // 速度也重置
   velInited = false;
   smoothVelX = smoothVelY = 0;
+  prevFX = prevFY = 0;
 }
 
 void startCalibration() {
@@ -348,25 +350,23 @@ void loop() {
   if (now - lastOutputMs >= OUTPUT_INTERVAL_MS) {
     lastOutputMs = now;
 
-    // ── 速度計算（使用 EMA 平滑值，deadband 之前）──
-    if (emaInitX && emaInitY) {
-      if (!velInited) {
-        // 第一幀：記錄起始位置，速度為 0
-        prevEmaX = emaX;
-        prevEmaY = emaY;
-        velInited = true;
-      } else {
-        // 原始速度 = 位移差 / 時間（mm/s）
-        float rawVelX = (emaX - prevEmaX) / DT;
-        float rawVelY = (emaY - prevEmaY) / DT;
+    // ── 速度計算（使用 fX/fY = deadband 後穩定值）──
+    // 靜止時 fX 不變 → rawVel = 0 → smoothVel 漸漸歸零
+    // 移動時 fX 跳變 → rawVel 脈衝 → smoothVel 漸漸爬升
+    // VEL_SMOOTH 很低(0.06) → 形成連續 ramp，不會跳來跳去
+    if (!velInited) {
+      prevFX = lastValidX;
+      prevFY = lastValidY;
+      velInited = true;
+    } else {
+      float rawVelX = (float)(lastValidX - prevFX) / DT;
+      float rawVelY = (float)(lastValidY - prevFY) / DT;
 
-        // EMA 平滑速度
-        smoothVelX = VEL_SMOOTH * rawVelX + (1.0f - VEL_SMOOTH) * smoothVelX;
-        smoothVelY = VEL_SMOOTH * rawVelY + (1.0f - VEL_SMOOTH) * smoothVelY;
+      smoothVelX = VEL_SMOOTH * rawVelX + (1.0f - VEL_SMOOTH) * smoothVelX;
+      smoothVelY = VEL_SMOOTH * rawVelY + (1.0f - VEL_SMOOTH) * smoothVelY;
 
-        prevEmaX = emaX;
-        prevEmaY = emaY;
-      }
+      prevFX = lastValidX;
+      prevFY = lastValidY;
     }
 
     // ── 輸出 ──
