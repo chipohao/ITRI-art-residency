@@ -13,9 +13,12 @@ Serial 輸出 OSC 風格格式，可直接接入 Max/MSP。
 |------|------|------|----------|------|
 | `tof_noSmooth/` | ESP32 Dev Module | 無 | `x=N,Y=M` | 最早版本，原始距離直出 |
 | `tof_optimized/` | ESP32 Dev Module | Median + 自適應 EMA | `/tof fX fY rX rY` | 優化版，雙層濾波 |
-| **`tof_c3_supermini/`** | **ESP32-C3 SuperMini** | **Median + 自適應 EMA + Deadband** | **`/tof fX fY rX rY`** | **目前使用版本，三層濾波** |
+| `tof_c3_supermini/` | ESP32-C3 SuperMini | Median + 自適應 EMA + Deadband | `/tof fX fY rX rY` | 三層濾波，僅位置 |
+| **`tof_c3_supermini_vel/`** | **ESP32-C3 SuperMini** | **同上 + 速度 ramp** | **`/tof fX fY rX rY vX vY`** | **位置 + 速度版本** |
 
-> `tof_c3_supermini` 和 `tof_optimized` 的 Serial 輸出格式完全相同，Max/MSP patch 不需要修改即可切換使用。
+> `tof_c3_supermini` 和 `tof_c3_supermini_vel` 的前四個值格式相同。
+> 舊的 Max patch（`[unpack i i i i]`）可以直接用 `_vel` 版本，只是忽略速度。
+> 要接收速度改用 `[unpack i i i i f f]`。
 
 ---
 
@@ -137,33 +140,47 @@ Baud rate: **115200**
 
 | 訊息 | 說明 |
 |------|------|
-| `/tof <filtered_x> <filtered_y> <raw_x> <raw_y>` | 正常量測（50Hz） |
+| `/tof <fX> <fY> <rX> <rY>` | 正常量測—僅位置（50Hz） |
+| `/tof <fX> <fY> <rX> <rY> <vX> <vY>` | 正常量測—位置 + 速度（`_vel` 版，50Hz） |
 | `/status calibrating <seconds_remaining>` | 校正倒數中 |
 | `/cal_done <offsetX> <offsetY> <samplesX> <samplesY>` | 校正完成 |
 | `/status running` | 開始正常運行 |
+| `/status velocity_on` / `velocity_off` | 速度輸出開關切換（`_vel` 版） |
 | `/status filters_reset` | 濾波器已重置 |
 | `/error <message>` | 錯誤訊息 |
 
-### `/tof` 四個數值的差別
+### `/tof` 數值說明
 
 ```
-/tof <fX> <fY> <rX> <rY>
-      ↑         ↑
-      濾波後     僅歸零、無濾波
+/tof <fX> <fY> <rX> <rY> <vX> <vY>
+      ↑         ↑         ↑
+      濾波後     僅歸零     速度（_vel 版才有）
 ```
 
-| | filtered (fX, fY) | raw (rX, rY) |
-|---|---|---|
-| 歸零 | 有 | 有 |
-| Median + EMA + Deadband | 有 | 無 |
-| 用途 | **控制用**（接 Max 畫面/聲音） | **除錯用**（觀察原始值） |
+| | filtered (fX, fY) | raw (rX, rY) | velocity (vX, vY) |
+|---|---|---|---|
+| 型態 | int (mm) | int (mm) | float (mm/s) |
+| 歸零 | 有 | 有 | — |
+| Median + EMA + Deadband | 有 | 無 | — |
+| 速度 ramp 平滑 | — | — | 有 |
+| 用途 | **控制用** | **除錯用** | **動態控制用** |
+
+#### 速度 (vX, vY) 特性
+
+- 單位：**mm/s**，帶正負方向
+  - 正值 = 遠離感測器（向中線移動）
+  - 負值 = 靠近感測器（向邊緣移動）
+- 從 fX/fY（deadband 後穩定值）計算 → 靜止時為 0，不會浮動
+- 重度 EMA 平滑（VEL_SMOOTH = 0.06）→ 連續 ramp，不跳動
+- 典型範圍：慢 ±50, 中 ±200, 快 ±500~1000
 
 ### Serial 指令
 
-| 指令 | 功能 |
-|------|------|
-| `c` | 重新校正（暖機 + 5 秒收集） |
-| `r` | 重啟濾波器（清除歷史，保留 offset） |
+| 指令 | 功能 | 版本 |
+|------|------|------|
+| `c` | 重新校正（暖機 + 5 秒收集） | 全版本 |
+| `r` | 重啟濾波器（清除歷史，保留 offset） | 全版本 |
+| `v` | 切換速度輸出開/關（預設開） | `_vel` 版 |
 
 ---
 
@@ -189,16 +206,18 @@ Baud rate: **115200**
  fX  fY  rX  rY
 ```
 
-### 分離 filtered 與 raw
+### 分離 filtered、raw、velocity
 
 ```
 [route /tof]
      |
-[unpack 0 0 0 0]
- |  |    |  |
- |  |  [pack 0 0] → raw_x raw_y（除錯用，不接也沒關係）
-[pack 0 0] → filtered_x filtered_y（控制用）
+[unpack 0 0 0 0 0. 0.]       ← 最後兩個用 0.（float）接速度
+ |  |    |  |    |   |
+ fX fY  rX rY   vX  vY
 ```
+
+> 如果用 `tof_c3_supermini`（無速度），`[unpack i i i i]` 就夠了。
+> 用 `tof_c3_supermini_vel` 時改成 `[unpack 0 0 0 0 0. 0.]` 或 `[unpack i i i i f f]`。
 
 ### 映射到 GL 座標
 
@@ -232,7 +251,7 @@ filtered_y → [/ 320.] → [* 2.] → [- 1.] → y_gl (-1.0 ~ 1.0)
 | `CALIB_MS` | 5000 | 校正收集時間 |
 | `RANGE_MAX` | 2000 | 有效量測範圍上限 (mm) |
 
-### 濾波參數
+### 濾波參數（位置）
 
 | 參數 | 預設值 | 說明 |
 |------|--------|------|
@@ -241,6 +260,24 @@ filtered_y → [/ 320.] → [* 2.] → [- 1.] → y_gl (-1.0 ~ 1.0)
 | `ALPHA_FAST` | 0.6 | 移動時 EMA 係數，越大越跟手 |
 | `ADAPTIVE_THRESH` | 10.0 | 靜止/移動切換閾值 (mm) |
 | `DEAD_BAND_MM` | 3 | Deadband 門檻，低於此變化量不更新 |
+
+### 速度參數（`_vel` 版）
+
+| 參數 | 預設值 | 說明 |
+|------|--------|------|
+| `VEL_SMOOTH` | 0.06 | 速度 EMA 平滑係數，越小 ramp 越緩（連續漸變），越大越即時 |
+
+**VEL_SMOOTH 效果對照**（@ 50Hz）：
+
+| VEL_SMOOTH | 63% 反應時間 | 適合場景 |
+|------------|-------------|----------|
+| `0.03` | ~0.67 秒 | 非常緩慢的漸變，適合環境音控制 |
+| `0.06` | ~0.33 秒 | 預設值，平滑漸變 |
+| `0.10` | ~0.20 秒 | 較快反應，適合節奏控制 |
+| `0.20` | ~0.10 秒 | 即時反應，有少量平滑 |
+| `0.35` | ~0.06 秒 | 幾乎即時，但可能有輕微跳動 |
+
+> 反應時間公式：`-DT / ln(1 - VEL_SMOOTH)` 秒
 
 ### 調整建議
 
@@ -252,6 +289,9 @@ filtered_y → [/ 320.] → [* 2.] → [- 1.] → y_gl (-1.0 ~ 1.0)
 | 偶爾還有突波穿透 | `MEDIAN_WINDOW` 改成 5 |
 | 靜止↔移動切換太敏感 | `ADAPTIVE_THRESH` 加大到 15~20 |
 | 感測器讀值本身不穩 | `TIMING_BUDGET_US` 加大到 50000 |
+| 速度變化太跳 | `VEL_SMOOTH` 降到 0.03 |
+| 速度反應太慢 | `VEL_SMOOTH` 加大到 0.10~0.20 |
+| 速度靜止時不歸零 | 檢查 `DEAD_BAND_MM`，確保位置有被鎖住 |
 
 ---
 

@@ -144,20 +144,23 @@ visualization/
 ### Max → server.js
 
 ```
-/tof fX fY rX rY
+/tof fX fY rX rY           ← tof_c3_supermini（無速度）
+/tof fX fY rX rY vX vY     ← tof_c3_supermini_vel（有速度）
 ```
 
-- `fX`, `fY`：校正後的位移值（mm），非負整數
-- `rX`, `rY`：原始距離讀數（mm），用於參考
+- `fX`, `fY`：濾波後位移（int, mm, ≥0）
+- `rX`, `rY`：校正後原始值（int, mm, ≥0）
+- `vX`, `vY`：速度（float, mm/s, 帶正負，`_vel` 版才有）
 - 頻率：約 50Hz（Arduino 端 20ms 間隔）
+- server.js 自動相容兩種格式（有無速度都能處理）
 
 ### server.js → 瀏覽器 (SSE)
 
 ```json
-{"type":"tof","fX":123,"fY":45,"rX":456,"rY":789}
+{"type":"tof","fX":123,"fY":45,"rX":456,"rY":789,"vX":12.3,"vY":-5.1}
 ```
 
-瀏覽器只使用 `fX` 和 `fY`。
+目前 index.html 使用 `fX` 和 `fY`。`vX`/`vY` 已透過 SSE 推送，可在前端自行取用。
 
 ---
 
