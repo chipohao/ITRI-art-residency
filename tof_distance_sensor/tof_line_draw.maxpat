@@ -9,8 +9,77 @@
             "modernui": 1
         },
         "classnamespace": "box",
-        "rect": [ 100.0, 93.0, 850.0, 713.0 ],
+        "rect": [ 651.0, 93.0, 850.0, 713.0 ],
         "boxes": [
+            {
+                "box": {
+                    "angle": 270.0,
+                    "bgcolor": [ 0.986246049404144, 0.007120788097382, 0.027434188872576, 0.25 ],
+                    "bordercolor": [ 0.807843137254902, 0.898039215686275, 0.909803921568627, 0.0 ],
+                    "id": "obj-97",
+                    "maxclass": "panel",
+                    "mode": 0,
+                    "numinlets": 1,
+                    "numoutlets": 0,
+                    "patching_rect": [ 524.0, 310.0, 168.0, 61.75 ],
+                    "presentation": 1,
+                    "presentation_rect": [ 201.0, 33.125, 93.0, 75.25 ],
+                    "proportion": 0.5
+                }
+            },
+            {
+                "box": {
+                    "format": 6,
+                    "id": "obj-81",
+                    "maxclass": "flonum",
+                    "numinlets": 1,
+                    "numoutlets": 2,
+                    "outlettype": [ "", "bang" ],
+                    "parameter_enable": 0,
+                    "patching_rect": [ 524.0, 422.0, 50.0, 22.0 ]
+                }
+            },
+            {
+                "box": {
+                    "id": "obj-42",
+                    "maxclass": "multislider",
+                    "numinlets": 1,
+                    "numoutlets": 2,
+                    "outlettype": [ "", "" ],
+                    "parameter_enable": 0,
+                    "patching_rect": [ 524.0, 272.0, 168.0, 138.0 ],
+                    "presentation": 1,
+                    "presentation_rect": [ 201.0, 15.0, 93.0, 112.0 ],
+                    "setminmax": [ -50.0, 50.0 ],
+                    "setstyle": 5
+                }
+            },
+            {
+                "box": {
+                    "fontname": "Sans Serif",
+                    "fontsize": 12.57125,
+                    "id": "obj-56",
+                    "maxclass": "newobj",
+                    "numinlets": 2,
+                    "numoutlets": 1,
+                    "outlettype": [ "float" ],
+                    "patching_rect": [ 524.0, 244.0, 38.0, 23.0 ],
+                    "text": "!- 0."
+                }
+            },
+            {
+                "box": {
+                    "fontname": "Sans Serif",
+                    "fontsize": 12.57125,
+                    "id": "obj-60",
+                    "maxclass": "newobj",
+                    "numinlets": 1,
+                    "numoutlets": 2,
+                    "outlettype": [ "", "" ],
+                    "patching_rect": [ 524.0, 211.0, 87.0, 23.0 ],
+                    "text": "bucket 2"
+                }
+            },
             {
                 "box": {
                     "id": "obj-33",
@@ -18,7 +87,7 @@
                     "maxclass": "comment",
                     "numinlets": 1,
                     "numoutlets": 0,
-                    "patching_rect": [ 478.0, 218.0, 150.0, 48.0 ],
+                    "patching_rect": [ 291.0, 211.0, 150.0, 48.0 ],
                     "text": "20260213\n這版本可以畫線、並且會持續一段時間後才消失。"
                 }
             },
@@ -31,7 +100,7 @@
                     "numoutlets": 2,
                     "outlettype": [ "", "bang" ],
                     "parameter_enable": 0,
-                    "patching_rect": [ 70.0, 374.0, 50.0, 22.0 ]
+                    "patching_rect": [ 27.0, 373.0, 50.0, 22.0 ]
                 }
             },
             {
@@ -41,7 +110,7 @@
                     "numinlets": 0,
                     "numoutlets": 1,
                     "outlettype": [ "" ],
-                    "patching_rect": [ 217.0, 225.0, 38.0, 22.0 ],
+                    "patching_rect": [ 205.0, 323.0, 38.0, 22.0 ],
                     "text": "r y_gl"
                 }
             },
@@ -52,7 +121,7 @@
                     "numinlets": 0,
                     "numoutlets": 1,
                     "outlettype": [ "" ],
-                    "patching_rect": [ 60.0, 238.0, 38.0, 22.0 ],
+                    "patching_rect": [ 27.0, 239.0, 38.0, 22.0 ],
                     "text": "r x_gl"
                 }
             },
@@ -64,19 +133,19 @@
                     "numoutlets": 1,
                     "outlettype": [ "int" ],
                     "parameter_enable": 0,
-                    "patching_rect": [ 144.0, 625.0, 24.0, 24.0 ]
+                    "patching_rect": [ 174.0, 610.0, 24.0, 24.0 ]
                 }
             },
             {
                 "box": {
                     "id": "obj-22",
-                    "linecount": 6,
+                    "linecount": 5,
                     "maxclass": "message",
                     "numinlets": 2,
                     "numoutlets": 1,
                     "outlettype": [ "" ],
-                    "patching_rect": [ 345.0, 261.0, 50.0, 89.0 ],
-                    "text": "setcell 598 val -0.955556 -0.64375 0."
+                    "patching_rect": [ 87.0, 443.5, 51.0, 76.0 ],
+                    "text": "setcell 748 val -0.25 -0.0875 0."
                 }
             },
             {
@@ -100,7 +169,7 @@
                     "numoutlets": 2,
                     "outlettype": [ "", "bang" ],
                     "parameter_enable": 0,
-                    "patching_rect": [ 357.0, 77.0, 50.0, 22.0 ]
+                    "patching_rect": [ 205.0, 77.0, 50.0, 22.0 ]
                 }
             },
             {
@@ -109,7 +178,7 @@
                     "maxclass": "comment",
                     "numinlets": 1,
                     "numoutlets": 0,
-                    "patching_rect": [ 30.0, 15.0, 357.0, 23.0 ],
+                    "patching_rect": [ 182.5, -20.0, 357.0, 23.0 ],
                     "text": "← 從你的 serial → sel → zl group → itoa → fromsymbol 接到這裡"
                 }
             },
@@ -120,7 +189,7 @@
                     "numinlets": 2,
                     "numoutlets": 2,
                     "outlettype": [ "", "" ],
-                    "patching_rect": [ 150.0, 45.0, 75.0, 22.0 ],
+                    "patching_rect": [ 150.0, 8.0, 75.0, 22.0 ],
                     "text": "route /tof"
                 }
             },
@@ -131,7 +200,7 @@
                     "numinlets": 1,
                     "numoutlets": 4,
                     "outlettype": [ "int", "int", "int", "int" ],
-                    "patching_rect": [ 150.0, 85.0, 130.0, 22.0 ],
+                    "patching_rect": [ 150.0, 40.0, 94.0, 22.0 ],
                     "text": "unpack 0 0 0 0"
                 }
             },
@@ -141,7 +210,7 @@
                     "maxclass": "comment",
                     "numinlets": 1,
                     "numoutlets": 0,
-                    "patching_rect": [ 53.0, 94.0, 40.0, 23.0 ],
+                    "patching_rect": [ 51.0, 116.5, 40.0, 23.0 ],
                     "text": "X軸"
                 }
             },
@@ -151,7 +220,7 @@
                     "maxclass": "comment",
                     "numinlets": 1,
                     "numoutlets": 0,
-                    "patching_rect": [ 310.0, 117.0, 40.0, 23.0 ],
+                    "patching_rect": [ 227.5, 116.5, 40.0, 23.0 ],
                     "text": "Y軸"
                 }
             },
@@ -173,7 +242,7 @@
                     "numinlets": 2,
                     "numoutlets": 1,
                     "outlettype": [ "float" ],
-                    "patching_rect": [ 300.0, 140.0, 39.0, 22.0 ],
+                    "patching_rect": [ 187.0, 117.0, 39.0, 22.0 ],
                     "text": "/ 400."
                 }
             },
@@ -195,7 +264,7 @@
                     "numinlets": 2,
                     "numoutlets": 1,
                     "outlettype": [ "float" ],
-                    "patching_rect": [ 300.0, 175.0, 38.0, 22.0 ],
+                    "patching_rect": [ 187.0, 144.0, 38.0, 22.0 ],
                     "text": "* 2."
                 }
             },
@@ -217,7 +286,7 @@
                     "numinlets": 2,
                     "numoutlets": 1,
                     "outlettype": [ "float" ],
-                    "patching_rect": [ 300.0, 210.0, 38.0, 22.0 ],
+                    "patching_rect": [ 187.0, 172.0, 38.0, 22.0 ],
                     "text": "- 1."
                 }
             },
@@ -227,7 +296,7 @@
                     "maxclass": "comment",
                     "numinlets": 1,
                     "numoutlets": 0,
-                    "patching_rect": [ 30.0, 200.0, 208.0, 23.0 ],
+                    "patching_rect": [ 14.0, 211.0, 211.0, 23.0 ],
                     "text": "t b f: f 先存到 pack，b 再觸發 counter"
                 }
             },
@@ -238,7 +307,7 @@
                     "numinlets": 1,
                     "numoutlets": 2,
                     "outlettype": [ "bang", "float" ],
-                    "patching_rect": [ 60.0, 270.0, 40.0, 22.0 ],
+                    "patching_rect": [ 27.0, 271.0, 40.0, 22.0 ],
                     "text": "t b f"
                 }
             },
@@ -249,7 +318,7 @@
                     "numinlets": 5,
                     "numoutlets": 4,
                     "outlettype": [ "int", "", "", "int" ],
-                    "patching_rect": [ 60.0, 315.0, 95.0, 22.0 ],
+                    "patching_rect": [ 27.0, 323.0, 95.0, 22.0 ],
                     "text": "counter 0 999"
                 }
             },
@@ -260,7 +329,7 @@
                     "numinlets": 3,
                     "numoutlets": 1,
                     "outlettype": [ "" ],
-                    "patching_rect": [ 150.0, 365.0, 75.0, 22.0 ],
+                    "patching_rect": [ 149.0, 373.0, 75.0, 22.0 ],
                     "text": "pack 0 0. 0."
                 }
             },
@@ -281,7 +350,7 @@
                     "maxclass": "comment",
                     "numinlets": 1,
                     "numoutlets": 0,
-                    "patching_rect": [ 345.0, 410.0, 250.0, 23.0 ],
+                    "patching_rect": [ 257.5, 385.0, 250.0, 23.0 ],
                     "text": "← setcell 索引 val X Y Z"
                 }
             },
@@ -291,7 +360,7 @@
                     "maxclass": "comment",
                     "numinlets": 1,
                     "numoutlets": 0,
-                    "patching_rect": [ 490.0, 455.0, 100.0, 23.0 ],
+                    "patching_rect": [ 285.5, 442.0, 75.0, 23.0 ],
                     "text": "開啟渲染 ↓"
                 }
             },
@@ -303,7 +372,7 @@
                     "numoutlets": 1,
                     "outlettype": [ "int" ],
                     "parameter_enable": 0,
-                    "patching_rect": [ 510.0, 475.0, 24.0, 24.0 ]
+                    "patching_rect": [ 257.5, 442.0, 24.0, 24.0 ]
                 }
             },
             {
@@ -313,7 +382,7 @@
                     "numinlets": 2,
                     "numoutlets": 1,
                     "outlettype": [ "bang" ],
-                    "patching_rect": [ 510.0, 510.0, 63.0, 22.0 ],
+                    "patching_rect": [ 257.5, 477.0, 63.0, 22.0 ],
                     "text": "metro 20"
                 }
             },
@@ -324,8 +393,8 @@
                     "numinlets": 1,
                     "numoutlets": 2,
                     "outlettype": [ "jit_matrix", "" ],
-                    "patching_rect": [ 200.0, 510.0, 195.0, 22.0 ],
-                    "text": "jit.matrix 3 float32 1000"
+                    "patching_rect": [ 150.0, 514.0, 126.0, 22.0 ],
+                    "text": "jit.matrix 3 float32 400"
                 }
             },
             {
@@ -335,7 +404,7 @@
                     "numinlets": 9,
                     "numoutlets": 2,
                     "outlettype": [ "", "" ],
-                    "patching_rect": [ 200.0, 570.0, 401.0, 22.0 ],
+                    "patching_rect": [ 150.0, 574.0, 401.0, 22.0 ],
                     "text": "jit.gl.mesh world @draw_mode line_strip @color 1. 1. 1. 1. @line_width 2."
                 }
             },
@@ -346,8 +415,8 @@
                     "numinlets": 1,
                     "numoutlets": 3,
                     "outlettype": [ "jit_matrix", "bang", "" ],
-                    "patching_rect": [ 200.0, 640.0, 415.0, 22.0 ],
-                    "text": "jit.world world @floating 1 @fps 50 @size 640 480 @erase_color 0. 0. 0. 0.1"
+                    "patching_rect": [ 150.0, 644.0, 422.0, 22.0 ],
+                    "text": "jit.world world @floating 1 @fps 50 @size 640 480 @erase_color 0. 0. 0. 0.15"
                 }
             },
             {
@@ -356,7 +425,7 @@
                     "maxclass": "comment",
                     "numinlets": 1,
                     "numoutlets": 0,
-                    "patching_rect": [ 200.0, 665.0, 400.0, 23.0 ],
+                    "patching_rect": [ 150.0, 669.0, 400.0, 23.0 ],
                     "text": "拖尾效果：把 erase_color 最後一個值改小 (如 0.05)"
                 }
             },
@@ -369,7 +438,7 @@
                     "numinlets": 0,
                     "numoutlets": 1,
                     "outlettype": [ "" ],
-                    "patching_rect": [ 150.0, 10.0, 30.0, 30.0 ]
+                    "patching_rect": [ 150.0, -27.0, 30.0, 30.0 ]
                 }
             }
         ],
@@ -403,14 +472,14 @@
             {
                 "patchline": {
                     "destination": [ "obj-13", 0 ],
-                    "order": 1,
+                    "order": 0,
                     "source": [ "obj-12", 0 ]
                 }
             },
             {
                 "patchline": {
                     "destination": [ "obj-22", 1 ],
-                    "order": 0,
+                    "order": 1,
                     "source": [ "obj-12", 0 ]
                 }
             },
@@ -494,14 +563,39 @@
             },
             {
                 "patchline": {
+                    "destination": [ "obj-81", 0 ],
+                    "source": [ "obj-42", 0 ]
+                }
+            },
+            {
+                "patchline": {
                     "destination": [ "obj-7", 0 ],
                     "source": [ "obj-5", 0 ]
                 }
             },
             {
                 "patchline": {
+                    "destination": [ "obj-42", 0 ],
+                    "source": [ "obj-56", 0 ]
+                }
+            },
+            {
+                "patchline": {
                     "destination": [ "obj-8", 0 ],
                     "source": [ "obj-6", 0 ]
+                }
+            },
+            {
+                "patchline": {
+                    "destination": [ "obj-56", 1 ],
+                    "midpoints": [ 601.5, 238.5, 552.5, 238.5 ],
+                    "source": [ "obj-60", 1 ]
+                }
+            },
+            {
+                "patchline": {
+                    "destination": [ "obj-56", 0 ],
+                    "source": [ "obj-60", 0 ]
                 }
             },
             {
