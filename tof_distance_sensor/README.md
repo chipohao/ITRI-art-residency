@@ -33,8 +33,10 @@ GPIO 5 (SDA) ──────── SDA ──────────── S
 GPIO 6 (SCL) ──────── SCL ──────────── SCL
 3.3V ─────────────── VIN ──────────── VIN
 GND ──────────────── GND ──────────── GND
-GPIO 3 ──────────── XSHUT
-GPIO 4 ─────────────────────────────── XSHUT
+GPIO 4 ──────────── XSHUT
+GPIO 3 ─────────────────────────────── XSHUT
+GPIO 0 ──────────── 外接按鈕（另一端接 GND，按下重新校正）
+GPIO 8 ──────────── 狀態 LED（校正中閃爍，運行中常滅）
 ```
 
 ### ESP32 Dev Module（舊版）
@@ -102,7 +104,12 @@ GPIO 26 ────────────────────────
 
 ### 重新校正
 
-透過 Serial 發送字元 `c` 即可重新觸發校正（不需拔線重開機）。
+兩種方式：
+
+1. **按鈕**（`_vel` 版）：按下外接按鈕（GPIO0）→ 重新校正，Serial 不中斷，Max 不需重連
+2. **Serial 指令**：發送字元 `c` → 重新校正
+
+校正期間 GPIO8 LED 閃爍（500ms 間隔），校正完成後 LED 熄滅。
 
 ---
 
@@ -146,6 +153,8 @@ Baud rate: **115200**
 | `/cal_done <offsetX> <offsetY> <samplesX> <samplesY>` | 校正完成 |
 | `/status running` | 開始正常運行 |
 | `/status velocity_on` / `velocity_off` | 速度輸出開關切換（`_vel` 版） |
+| `/status button_recalibrate` | 按鈕觸發重新校正（`_vel` 版） |
+| `/status recalibrating` | 重新進入校正流程（`_vel` 版） |
 | `/status filters_reset` | 濾波器已重置 |
 | `/error <message>` | 錯誤訊息 |
 
@@ -301,7 +310,7 @@ filtered_y → [/ 320.] → [* 2.] → [- 1.] → y_gl (-1.0 ~ 1.0)
 |------|----------|------|
 | Serial Monitor 無輸出 | ESP32-C3 未啟用 USB CDC | Tools → USB CDC On Boot → **Enabled**，重新燒錄 |
 | `/error sensor1_init_failed` | 感測器接線鬆脫或 I2C 腳位錯誤 | 檢查 SDA/SCL/XSHUT 接線與供電 |
-| 數值不動（一直是 0） | 校正時手把不在原點 | Serial 送 `c` 重新校正 |
+| 數值不動（一直是 0） | 校正時手把不在原點 | Serial 送 `c` 或按外接按鈕重新校正 |
 | Max 收不到資料 | Serial port 被 Arduino Serial Monitor 佔用 | 關閉 Serial Monitor 再開 Max |
 | Max 收到亂碼 | Baud rate 不對 | 確認 Max 的 serial object 設為 115200 |
 | 編譯失敗 `{build.partitions}` | Board 沒選對 | 選 ESP32C3 Dev Module，設好 Partition Scheme |
