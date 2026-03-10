@@ -56,8 +56,8 @@
 // =======================
 #define I2C_SDA 5
 #define I2C_SCL 6
-#define XSHUT_1 3
-#define XSHUT_2 4
+#define XSHUT_1 4
+#define XSHUT_2 3
 #define BUTTON_PIN 0
 #define STATUS_LED 8
 #define ADDR_1 0x30
