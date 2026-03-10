@@ -12,8 +12,8 @@
  *
  * ── 硬體接線（ESP32-C3 SuperMini）─────────────────────
  *   I2C SDA   → GPIO5     I2C SCL  → GPIO6
- *   XSHUT_1   → GPIO3     感測器 1 硬體關閉腳
- *   XSHUT_2   → GPIO4     感測器 2 硬體關閉腳
+ *   XSHUT_1   → GPIO4     感測器 1 硬體關閉腳
+ *   XSHUT_2   → GPIO3     感測器 2 硬體關閉腳
  *   BUTTON    → GPIO0     外接按鈕（按下 = LOW，重新校正）
  *   LED       → GPIO8     狀態指示燈（校正中閃爍）
  *   VCC       → 3.3V      GND → GND
