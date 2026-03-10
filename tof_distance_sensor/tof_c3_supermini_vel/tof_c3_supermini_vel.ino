@@ -7,11 +7,15 @@
  *   2. 速度從 fX/fY（deadband 後穩定值）計算 → 靜止時速度為 0
  *   3. 速度做重度 EMA 平滑（VEL_SMOOTH = 0.06）→ 連續 ramp，不會跳動
  *   4. 新增 Serial 指令 'v' 可切換速度輸出開關
+ *   5. 按鈕（GPIO0）按下 → 重新校正（不中斷 Serial）
+ *   6. 狀態 LED（GPIO8）校正中閃爍，運行中常滅
  *
  * ── 硬體接線（ESP32-C3 SuperMini）─────────────────────
  *   I2C SDA   → GPIO5     I2C SCL  → GPIO6
  *   XSHUT_1   → GPIO3     感測器 1 硬體關閉腳
  *   XSHUT_2   → GPIO4     感測器 2 硬體關閉腳
+ *   BUTTON    → GPIO0     外接按鈕（按下 = LOW，重新校正）
+ *   LED       → GPIO8     狀態指示燈（校正中閃爍）
  *   VCC       → 3.3V      GND → GND
  *   感測器 1 地址：0x30，感測器 2 地址：0x31
  *
@@ -54,6 +58,8 @@
 #define I2C_SCL 6
 #define XSHUT_1 3
 #define XSHUT_2 4
+#define BUTTON_PIN 0
+#define STATUS_LED 8
 #define ADDR_1 0x30
 #define ADDR_2 0x31
 
@@ -120,9 +126,46 @@ bool velInited = false;
 float smoothVelX = 0, smoothVelY = 0;
 bool velEnabled = true;  // 速度輸出開關
 
+// === LED 閃爍 ===
+unsigned long lastBlink = 0;
+bool ledState = false;
+const int BLINK_INTERVAL = 500;
+
+// === 按鈕 debounce ===
+bool buttonReading = HIGH;
+bool lastButtonReading = HIGH;
+bool buttonState = HIGH;
+unsigned long lastDebounceTime = 0;
+const unsigned long debounceDelay = 30;
+
 // --------------------------------------------------
 // 工具函式
 // --------------------------------------------------
+
+void updateBlink() {
+  if (millis() - lastBlink > BLINK_INTERVAL) {
+    lastBlink = millis();
+    ledState = !ledState;
+    digitalWrite(STATUS_LED, ledState);
+  }
+}
+
+void checkButton() {
+  buttonReading = digitalRead(BUTTON_PIN);
+  if (buttonReading != lastButtonReading) {
+    lastDebounceTime = millis();
+  }
+  if ((millis() - lastDebounceTime) > debounceDelay) {
+    if (buttonReading != buttonState) {
+      buttonState = buttonReading;
+      if (buttonState == LOW) {
+        Serial.println("/status button_recalibrate");
+        startCalibration();
+      }
+    }
+  }
+  lastButtonReading = buttonReading;
+}
 
 int cmpInt(const void *a, const void *b) {
   return (*(int *)a) - (*(int *)b);
@@ -192,6 +235,7 @@ void startCalibration() {
   resetFilters();
   lastValidX = lastValidY = 0;
   lastRawX = lastRawY = 0;
+  Serial.println("/status recalibrating");
 }
 
 bool readSensor(Adafruit_VL53L0X &lox, int &outRaw) {
@@ -213,6 +257,9 @@ bool readSensor(Adafruit_VL53L0X &lox, int &outRaw) {
 void setup() {
   Serial.begin(115200);
   delay(500);
+
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  pinMode(STATUS_LED, OUTPUT);
 
   Wire.begin(I2C_SDA, I2C_SCL);
   Wire.setClock(400000);
@@ -251,6 +298,14 @@ void setup() {
 // --------------------------------------------------
 void loop() {
   unsigned long now = millis();
+
+  // === 按鈕 + LED ===
+  checkButton();
+  if (currentState != STATE_RUNNING) {
+    updateBlink();  // 校正中 LED 閃爍
+  } else {
+    digitalWrite(STATUS_LED, LOW);  // 運行中常滅
+  }
 
   // === Serial 指令 ===
   if (Serial.available()) {
