@@ -276,7 +276,7 @@ void checkPiezo(int index) {
   // Update baseline only in normal mode (not during peak scan)
   st.baseline += (st.filtered - st.baseline) >> BASELINE_ALPHA_SHIFT;
 
-  if (diff > THRESHOLD_DELTA[index]) {
+  if (rawDiff > THRESHOLD_DELTA[index]) {
     st.hitCount++;
   } else {
     st.hitCount = 0;
