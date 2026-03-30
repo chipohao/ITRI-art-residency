@@ -250,6 +250,14 @@ void checkPiezo(int index) {
 
     digitalWrite(ledPins[index], HIGH);
     ledOffTime[index] = millis() + tailMs;  // Always overwrite — new signal resets
+
+    // DEBUG: print when LED actually triggers
+    if (Serial.availableForWrite() > 30) {
+      Serial.print("[LED] ch");
+      Serial.print(index + 1);
+      Serial.print(" rawDiff=");
+      Serial.println(rawDiff);
+    }
   }
 
   // -------------------------
@@ -266,6 +274,10 @@ void checkPiezo(int index) {
       // Force LED on for peak hit (guaranteed visual feedback)
       digitalWrite(ledPins[index], HIGH);
       ledOffTime[index] = millis() + LED_TAIL_MAX_MS;
+      if (Serial.availableForWrite() > 30) {
+        Serial.print("[LED-HIT] ch");
+        Serial.println(index + 1);
+      }
       st.scanningPeak = false;
       st.hitCount = 0;
       lastTriggerTime[index] = millis();
