@@ -81,7 +81,7 @@ const int FILTER_SHIFT = 2;           // filtered += (raw - filtered) / 4
 // LED tail settings
 const int LED_TAIL_MIN_MS = 50;    // 最短拖尾（輕觸）
 const int LED_TAIL_MAX_MS = 500;   // 最長拖尾（重擊）
-const int LED_ACTIVITY_THRESHOLD = 25;  // diff 超過多少就點亮 LED
+const int LED_ACTIVITY_THRESHOLD = 10;  // diff 超過多少就點亮 LED
 
 // Continuous stream output interval
 const unsigned long STREAM_INTERVAL_MS = 20;  // 50Hz
