@@ -10,6 +10,7 @@
  *   6) Non-blocking LED flash
  *   7) Serial buffer overflow protection (prevent blocking delay)
  *   8) WHO identification protocol for multi-device setup
+ *   9) Continuous stream output (like a microphone level meter)
  *
  * -- Hardware Wiring (ESP32-C3 SuperMini) ---------------------
  *   Piezo 1    -> GPIO0     Piezo sensor 1 (+ 1M ohm to GND)
@@ -24,14 +25,17 @@
  *   GND        -> GND       All sensors & LEDs share ground
  *
  * -- Serial Output Format -------------------------------------
- *   /piezo <channel> <velocity> <rawPeak>
- *   Example:
- *   /piezo 1 88 3084
- *   /piezo 3 112 3560
  *
- *   channel:  1~4
- *   velocity: 1~127 (mapped from peak value)
- *   rawPeak:  raw ADC peak value (0~4095)
+ *   1) Continuous stream (50Hz, always running):
+ *      /piezo/stream d1 d2 d3 d4
+ *      d1~d4: activity level per channel (filtered - baseline, min 0)
+ *             idle = 0, touch/scrape = low values, hit = spike
+ *
+ *   2) Peak hit event (on strong transient):
+ *      /piezo <channel> <velocity> <rawPeak>
+ *      channel:  1~4
+ *      velocity: 1~127 (mapped from peak value)
+ *      rawPeak:  raw ADC peak value (0~4095)
  *
  * -- WHO Identification Protocol ------------------------------
  *   Send "WHO\n" via Serial -> responds with "ID:piezo"
@@ -77,6 +81,9 @@ const int FILTER_SHIFT = 2;           // filtered += (raw - filtered) / 4
 // LED on duration (non-blocking)
 const int LED_ON_MS = 30;
 
+// Continuous stream output interval
+const unsigned long STREAM_INTERVAL_MS = 20;  // 50Hz
+
 // =========================
 // State
 // =========================
@@ -95,6 +102,7 @@ struct PiezoState {
 PiezoState states[NUM_PIEZOS];
 unsigned long lastTriggerTime[NUM_PIEZOS] = {0, 0, 0, 0};
 unsigned long ledOffTime[NUM_PIEZOS]      = {0, 0, 0, 0};
+unsigned long lastStreamTime = 0;
 
 // =========================
 // Setup
@@ -128,7 +136,30 @@ void loop() {
     checkPiezo(i);
   }
 
+  sendStream();
   updateLEDs();
+}
+
+// =========================
+// Continuous stream output (50Hz)
+// Format: /piezo/stream d1 d2 d3 d4
+// =========================
+void sendStream() {
+  unsigned long now = millis();
+  if (now - lastStreamTime < STREAM_INTERVAL_MS) return;
+  lastStreamTime = now;
+
+  // Skip if serial TX buffer is low
+  if (Serial.availableForWrite() < 40) return;
+
+  Serial.print("/piezo/stream");
+  for (int i = 0; i < NUM_PIEZOS; i++) {
+    int diff = states[i].filtered - states[i].baseline;
+    if (diff < 0) diff = 0;
+    Serial.print(" ");
+    Serial.print(diff);
+  }
+  Serial.println();
 }
 
 // =========================
