@@ -186,14 +186,13 @@ void checkPiezo(int index) {
   int raw = analogRead(pin);
 
   // -------------------------
-  // Always update IIR filter & baseline (even during peak scan)
-  // This prevents baseline drift when scanning frequently
+  // Always update IIR filter (even during peak scan)
   // -------------------------
   st.filtered += (raw - st.filtered) >> FILTER_SHIFT;
-  st.baseline += (st.filtered - st.baseline) >> BASELINE_ALPHA_SHIFT;
 
   // -------------------------
   // A. Peak scanning: update peak, send when time's up
+  //    (baseline NOT updated during scan to avoid inflation)
   // -------------------------
   if (st.scanningPeak) {
     if (raw > st.peakValue) {
@@ -208,6 +207,9 @@ void checkPiezo(int index) {
     }
     return;
   }
+
+  // Update baseline only in normal mode (not during peak scan)
+  st.baseline += (st.filtered - st.baseline) >> BASELINE_ALPHA_SHIFT;
 
   int diff = st.filtered - st.baseline;
 
