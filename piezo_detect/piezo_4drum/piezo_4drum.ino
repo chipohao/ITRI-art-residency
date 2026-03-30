@@ -7,7 +7,7 @@
  *   3) Consecutive hit debounce
  *   4) IIR filter
  *   5) Non-blocking peak capture (no while loop)
- *   6) Non-blocking LED flash
+ *   6) Non-blocking LED with fade tail (activity-driven, new signal resets)
  *   7) Serial buffer overflow protection (prevent blocking delay)
  *   8) WHO identification protocol for multi-device setup
  *   9) Continuous stream output (like a microphone level meter)
@@ -78,8 +78,10 @@ const int BASELINE_ALPHA_SHIFT = 6;   // baseline += (filtered - baseline) / 64
 // IIR filter strength: larger = smoother but slower response
 const int FILTER_SHIFT = 2;           // filtered += (raw - filtered) / 4
 
-// LED on duration (non-blocking)
-const int LED_ON_MS = 30;
+// LED tail settings
+const int LED_TAIL_MIN_MS = 50;    // 最短拖尾（輕觸）
+const int LED_TAIL_MAX_MS = 500;   // 最長拖尾（重擊）
+const int LED_ACTIVITY_THRESHOLD = 3;  // diff 超過多少就點亮 LED
 
 // Continuous stream output interval
 const unsigned long STREAM_INTERVAL_MS = 20;  // 50Hz
@@ -222,6 +224,22 @@ void checkPiezo(int index) {
   st.filtered += (raw - st.filtered) >> FILTER_SHIFT;
 
   // -------------------------
+  // LED: any activity above threshold lights up with tail
+  // New signal always resets the timer (no waiting for previous)
+  // -------------------------
+  int diff = st.filtered - st.baseline;
+  if (diff < 0) diff = 0;
+
+  if (diff > LED_ACTIVITY_THRESHOLD) {
+    // Map diff to tail duration: stronger = longer tail
+    int tailMs = map(diff, LED_ACTIVITY_THRESHOLD, MAX_READING[index], LED_TAIL_MIN_MS, LED_TAIL_MAX_MS);
+    tailMs = constrain(tailMs, LED_TAIL_MIN_MS, LED_TAIL_MAX_MS);
+
+    digitalWrite(ledPins[index], HIGH);
+    ledOffTime[index] = millis() + tailMs;  // Always overwrite — new signal resets
+  }
+
+  // -------------------------
   // A. Peak scanning: update peak, send when time's up
   //    (baseline NOT updated during scan to avoid inflation)
   // -------------------------
@@ -242,8 +260,6 @@ void checkPiezo(int index) {
   // Update baseline only in normal mode (not during peak scan)
   st.baseline += (st.filtered - st.baseline) >> BASELINE_ALPHA_SHIFT;
 
-  int diff = st.filtered - st.baseline;
-
   if (diff > THRESHOLD_DELTA[index]) {
     st.hitCount++;
   } else {
@@ -253,22 +269,11 @@ void checkPiezo(int index) {
   if (st.hitCount >= HITS_REQUIRED &&
       (millis() - lastTriggerTime[index] > COOLDOWN_MS)) {
 
-    // Trigger: LED on immediately
-    triggerLED(index);
-
     // Enter non-blocking peak scan state
     st.scanningPeak = true;
     st.scanStartTime = millis();
     st.peakValue = raw;
   }
-}
-
-// =========================
-// LED trigger
-// =========================
-void triggerLED(int index) {
-  digitalWrite(ledPins[index], HIGH);
-  ledOffTime[index] = millis() + LED_ON_MS;
 }
 
 // =========================
