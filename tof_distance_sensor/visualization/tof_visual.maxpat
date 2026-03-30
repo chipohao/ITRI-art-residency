@@ -9,8 +9,19 @@
             "modernui": 1
         },
         "classnamespace": "box",
-        "rect": [ 123.0, 92.0, 1276.0, 714.0 ],
+        "rect": [ 34.0, 92.0, 1276.0, 714.0 ],
         "boxes": [
+            {
+                "box": {
+                    "id": "obj-49",
+                    "maxclass": "message",
+                    "numinlets": 2,
+                    "numoutlets": 1,
+                    "outlettype": [ "" ],
+                    "patching_rect": [ 170.5, 257.0, 99.0, 22.0 ],
+                    "text": "/tof 1 1 0 0 0. -0."
+                }
+            },
             {
                 "box": {
                     "id": "obj-115",
@@ -2935,12 +2946,13 @@
             {
                 "box": {
                     "id": "obj-30",
+                    "linecount": 2,
                     "maxclass": "message",
                     "numinlets": 2,
                     "numoutlets": 1,
                     "outlettype": [ "" ],
-                    "patching_rect": [ 178.5, 353.0, 98.0, 22.0 ],
-                    "text": "/status running"
+                    "patching_rect": [ 178.5, 353.0, 98.0, 35.0 ],
+                    "text": "/pressure 0. 0. 11 12"
                 }
             },
             {
@@ -3270,7 +3282,6 @@
                         },
                         "classnamespace": "box",
                         "rect": [ 34.0, 92.0, 558.0, 714.0 ],
-                        "visible": 1,
                         "boxes": [
                             {
                                 "box": {
@@ -7006,7 +7017,7 @@
                     "fontname": "Verdana",
                     "fontsize": 9.0,
                     "id": "obj-23",
-                    "items": [ "select...", ",", "BLTH", ",", "Bluetooth-Incoming-Port", ",", "HookeVerse", ",", "macMacBookPro", ",", "NS-83", ",", "F4", ",", "BigAirpod", ",", "usbmodem14401" ],
+                    "items": [ "select...", ",", "BLTH", ",", "Bluetooth-Incoming-Port", ",", "HookeVerse", ",", "macMacBookPro", ",", "NS-83", ",", "F4", ",", "BigAirpod", ",", "usbmodem14101", ",", "usbmodem14401", ",", "usbmodem143301" ],
                     "labelclick": 1,
                     "maxclass": "umenu",
                     "numinlets": 1,
@@ -7157,6 +7168,13 @@
             {
                 "patchline": {
                     "destination": [ "obj-43", 0 ],
+                    "order": 2,
+                    "source": [ "obj-11", 0 ]
+                }
+            },
+            {
+                "patchline": {
+                    "destination": [ "obj-49", 1 ],
                     "order": 1,
                     "source": [ "obj-11", 0 ]
                 }

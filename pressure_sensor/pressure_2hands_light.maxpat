@@ -13,6 +13,18 @@
         "boxes": [
             {
                 "box": {
+                    "id": "obj-1",
+                    "maxclass": "gain~",
+                    "multichannelvariant": 0,
+                    "numinlets": 1,
+                    "numoutlets": 2,
+                    "outlettype": [ "signal", "" ],
+                    "parameter_enable": 0,
+                    "patching_rect": [ 341.0, 375.0, 22.0, 140.0 ]
+                }
+            },
+            {
+                "box": {
                     "format": 6,
                     "id": "obj-60",
                     "maxclass": "flonum",
@@ -43,7 +55,7 @@
                     "numoutlets": 1,
                     "outlettype": [ "" ],
                     "patching_rect": [ 120.5, 346.0, 82.0, 22.0 ],
-                    "text": "/status idle"
+                    "text": "/status active"
                 }
             },
             {
@@ -85,7 +97,7 @@
                     "maxclass": "newobj",
                     "numinlets": 2,
                     "numoutlets": 0,
-                    "patching_rect": [ 341.0, 443.0177, 35.0, 22.0 ],
+                    "patching_rect": [ 341.0, 547.0, 35.0, 22.0 ],
                     "text": "dac~"
                 }
             },
@@ -161,7 +173,7 @@
                     "numoutlets": 1,
                     "outlettype": [ "" ],
                     "patching_rect": [ 563.0, 218.0177, 101.0, 22.0 ],
-                    "text": "scale 0. 1. -70. 6."
+                    "text": "scale 0. 1. -70. 0."
                 }
             },
             {
@@ -204,6 +216,7 @@
                                 "filename": "Bubbles_ Big_ Fast_ Gurgling Up.aif",
                                 "filekind": "audiofile",
                                 "id": "u924007847",
+                                "selection": [ 0.08421052631578947, 0.7684210526315789 ],
                                 "loop": 1,
                                 "content_state": {
                                     "loop": 1
@@ -265,6 +278,7 @@
                                 "filename": "Heavy Cold Gusts Howling.aif",
                                 "filekind": "audiofile",
                                 "id": "u911007809",
+                                "selection": [ 0.09473684210526316, 0.8 ],
                                 "loop": 1,
                                 "content_state": {
                                     "loop": 1
@@ -400,8 +414,8 @@
                     "numinlets": 2,
                     "numoutlets": 1,
                     "outlettype": [ "" ],
-                    "patching_rect": [ 144.0, 210.0, 143.0, 35.0 ],
-                    "text": "\"/pressure 0.000 0.000 15 16\""
+                    "patching_rect": [ 121.0, 210.0, 166.0, 35.0 ],
+                    "text": "\"/pressure 0.816 0.809 3251 2923\""
                 }
             },
             {
@@ -795,7 +809,7 @@
                     "fontname": "Verdana",
                     "fontsize": 9.0,
                     "id": "obj-23",
-                    "items": [ "select...", ",", "BLTH", ",", "Bluetooth-Incoming-Port", ",", "HookeVerse", ",", "macMacBookPro", ",", "NS-83", ",", "F4", ",", "BigAirpod", ",", "usbmodem14301" ],
+                    "items": [ "select...", ",", "BLTH", ",", "Bluetooth-Incoming-Port", ",", "HookeVerse", ",", "macMacBookPro", ",", "NS-83", ",", "F4", ",", "BigAirpod", ",", "usbmodem14101", ",", "usbmodem14401", ",", "usbmodem143301" ],
                     "labelclick": 1,
                     "maxclass": "umenu",
                     "numinlets": 1,
@@ -897,6 +911,20 @@
             }
         ],
         "lines": [
+            {
+                "patchline": {
+                    "destination": [ "obj-9", 1 ],
+                    "order": 0,
+                    "source": [ "obj-1", 0 ]
+                }
+            },
+            {
+                "patchline": {
+                    "destination": [ "obj-9", 0 ],
+                    "order": 1,
+                    "source": [ "obj-1", 0 ]
+                }
+            },
             {
                 "patchline": {
                     "destination": [ "obj-22", 0 ],
@@ -1063,15 +1091,7 @@
             },
             {
                 "patchline": {
-                    "destination": [ "obj-9", 1 ],
-                    "order": 0,
-                    "source": [ "obj-54", 0 ]
-                }
-            },
-            {
-                "patchline": {
-                    "destination": [ "obj-9", 0 ],
-                    "order": 1,
+                    "destination": [ "obj-1", 0 ],
                     "source": [ "obj-54", 0 ]
                 }
             },
@@ -1095,15 +1115,7 @@
             },
             {
                 "patchline": {
-                    "destination": [ "obj-9", 1 ],
-                    "order": 0,
-                    "source": [ "obj-58", 0 ]
-                }
-            },
-            {
-                "patchline": {
-                    "destination": [ "obj-9", 0 ],
-                    "order": 1,
+                    "destination": [ "obj-1", 0 ],
                     "source": [ "obj-58", 0 ]
                 }
             },
@@ -1153,6 +1165,14 @@
         "parameters": {
             "obj-54": [ "live.gain~[3]", "live.gain~", 0 ],
             "obj-58": [ "live.gain~[4]", "live.gain~", 0 ],
+            "parameterbanks": {
+                "0": {
+                    "index": 0,
+                    "name": "",
+                    "parameters": [ "-", "-", "-", "-", "-", "-", "-", "-" ],
+                    "buttons": [ "-", "-", "-", "-", "-", "-", "-", "-" ]
+                }
+            },
             "inherited_shortname": 1
         },
         "autosave": 0
