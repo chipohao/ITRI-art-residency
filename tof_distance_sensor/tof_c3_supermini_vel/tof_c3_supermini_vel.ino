@@ -38,6 +38,7 @@
  *   'c' → 重新校正（暖機 + 校正）
  *   'r' → 重啟濾波器（保留 offset）
  *   'v' → 切換速度輸出（預設開啟）
+ *   "WHO\n" → 回覆 "ID:tof"（裝置識別）
  *
  * ── Max/MSP 接收 ──────────────────────────────────────
  *   [serial <port> 115200] → [sel 10] → [zl group] → [itoa] → [fromsymbol]
@@ -50,6 +51,11 @@
 #include <Wire.h>
 #include "Adafruit_VL53L0X.h"
 #include <math.h>
+
+// =========================
+// Device ID (for WHO identification)
+// =========================
+const char* DEVICE_ID = "tof";
 
 // =======================
 // ESP32-C3 SuperMini Pins
@@ -309,19 +315,28 @@ void loop() {
 
   // === Serial 指令 ===
   if (Serial.available()) {
-    char cmd = Serial.read();
-    if (cmd == 'c') {
-      startCalibration();
+    String cmdStr = Serial.readStringUntil('\n');
+    cmdStr.trim();
+    if (cmdStr == "WHO") {
+      Serial.println("ID:" + String(DEVICE_ID));
       return;
-    } else if (cmd == 'r') {
-      resetFilters();
-      Serial.println("/status filters_reset");
-      return;
-    } else if (cmd == 'v') {
-      velEnabled = !velEnabled;
-      Serial.print("/status velocity_");
-      Serial.println(velEnabled ? "on" : "off");
-      return;
+    }
+    // Single-char commands (backward compatible)
+    if (cmdStr.length() == 1) {
+      char cmd = cmdStr.charAt(0);
+      if (cmd == 'c') {
+        startCalibration();
+        return;
+      } else if (cmd == 'r') {
+        resetFilters();
+        Serial.println("/status filters_reset");
+        return;
+      } else if (cmd == 'v') {
+        velEnabled = !velEnabled;
+        Serial.print("/status velocity_");
+        Serial.println(velEnabled ? "on" : "off");
+        return;
+      }
     }
   }
 

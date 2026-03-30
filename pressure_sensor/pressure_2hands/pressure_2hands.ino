@@ -26,9 +26,17 @@
  *   /status recalibrating               按鈕觸發重新校正
  *   /status idle                        進入閒置待機
  *   /status active                      從閒置恢復
+ *
+ * ── WHO Identification Protocol ─────────────────────────
+ *   Send "WHO\n" via Serial -> responds with "ID:pressure"
  */
 
 #include <Adafruit_NeoPixel.h>
+
+// =========================
+// Device ID (for WHO identification)
+// =========================
+const char* DEVICE_ID = "pressure";
 
 // =========================
 // Pin 設定
@@ -287,6 +295,16 @@ void setup() {
 // loop
 // =========================
 void loop() {
+  // Handle WHO identification command
+  if (Serial.available()) {
+    String cmd = Serial.readStringUntil('\n');
+    cmd.trim();
+    if (cmd == "WHO") {
+      Serial.println("ID:" + String(DEVICE_ID));
+      return;
+    }
+  }
+
   checkButton();
 
   int raw1 = readFSRRawAveraged(ch1.fsrPin);
