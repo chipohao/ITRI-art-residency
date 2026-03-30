@@ -73,7 +73,9 @@ const int COOLDOWN_MS = 120;
 const int HITS_REQUIRED = 2;
 
 // Baseline tracking speed: larger = slower
-const int BASELINE_ALPHA_SHIFT = 6;   // baseline += (filtered - baseline) / 64
+// Loop runs ~100kHz with no delay, so shift must be high
+// shift 10 (1/1024) → baseline takes ~10ms to catch up
+const int BASELINE_ALPHA_SHIFT = 10;
 
 // IIR filter strength: larger = smoother but slower response
 const int FILTER_SHIFT = 2;           // filtered += (raw - filtered) / 4
@@ -105,6 +107,7 @@ PiezoState states[NUM_PIEZOS];
 unsigned long lastTriggerTime[NUM_PIEZOS] = {0, 0, 0, 0};
 unsigned long ledOffTime[NUM_PIEZOS]      = {0, 0, 0, 0};
 unsigned long lastStreamTime = 0;
+unsigned long lastDebugTime = 0;
 
 // =========================
 // Setup
@@ -119,6 +122,15 @@ void setup() {
 
   analogReadResolution(12);       // 0~4095
   analogSetAttenuation(ADC_11db); // ~0~3.3V range
+
+  // --- LED hardware test: blink all 4 LEDs on startup ---
+  for (int i = 0; i < NUM_PIEZOS; i++) {
+    digitalWrite(ledPins[i], HIGH);
+  }
+  delay(300);
+  for (int i = 0; i < NUM_PIEZOS; i++) {
+    digitalWrite(ledPins[i], LOW);
+  }
 
   for (int i = 0; i < NUM_PIEZOS; i++) {
     initPiezo(states[i], piezoPins[i]);
@@ -140,6 +152,7 @@ void loop() {
 
   sendStream();
   updateLEDs();
+  debugPrint();
 }
 
 // =========================
@@ -224,15 +237,15 @@ void checkPiezo(int index) {
   st.filtered += (raw - st.filtered) >> FILTER_SHIFT;
 
   // -------------------------
-  // LED: any activity above threshold lights up with tail
+  // LED: use RAW - baseline (not filtered) for instant response
   // New signal always resets the timer (no waiting for previous)
   // -------------------------
-  int diff = st.filtered - st.baseline;
-  if (diff < 0) diff = 0;
+  int rawDiff = raw - st.baseline;
+  if (rawDiff < 0) rawDiff = 0;
 
-  if (diff > LED_ACTIVITY_THRESHOLD) {
-    // Map diff to tail duration: stronger = longer tail
-    int tailMs = map(diff, LED_ACTIVITY_THRESHOLD, MAX_READING[index], LED_TAIL_MIN_MS, LED_TAIL_MAX_MS);
+  if (rawDiff > LED_ACTIVITY_THRESHOLD) {
+    // Map rawDiff to tail duration: stronger = longer tail
+    int tailMs = map(rawDiff, LED_ACTIVITY_THRESHOLD, MAX_READING[index], LED_TAIL_MIN_MS, LED_TAIL_MAX_MS);
     tailMs = constrain(tailMs, LED_TAIL_MIN_MS, LED_TAIL_MAX_MS);
 
     digitalWrite(ledPins[index], HIGH);
@@ -250,6 +263,9 @@ void checkPiezo(int index) {
 
     if (millis() - st.scanStartTime >= SCAN_TIME_MS) {
       sendSimpleMessage(index, st.peakValue);
+      // Force LED on for peak hit (guaranteed visual feedback)
+      digitalWrite(ledPins[index], HIGH);
+      ledOffTime[index] = millis() + LED_TAIL_MAX_MS;
       st.scanningPeak = false;
       st.hitCount = 0;
       lastTriggerTime[index] = millis();
@@ -314,4 +330,28 @@ void updateLEDs() {
       ledOffTime[i] = 0;
     }
   }
+}
+
+// =========================
+// Debug: print diff values every 500ms
+// (remove this once LED is working)
+// =========================
+void debugPrint() {
+  unsigned long now = millis();
+  if (now - lastDebugTime < 500) return;
+  lastDebugTime = now;
+
+  if (Serial.availableForWrite() < 60) return;
+
+  Serial.print("[DBG] filt:");
+  for (int i = 0; i < NUM_PIEZOS; i++) {
+    Serial.print(" ");
+    Serial.print(states[i].filtered);
+  }
+  Serial.print("  base:");
+  for (int i = 0; i < NUM_PIEZOS; i++) {
+    Serial.print(" ");
+    Serial.print(states[i].baseline);
+  }
+  Serial.println();
 }
