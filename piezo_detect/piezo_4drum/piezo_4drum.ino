@@ -132,14 +132,24 @@ void loop() {
 }
 
 // =========================
-// Serial command handler (WHO protocol)
+// Serial command handler (WHO protocol, non-blocking)
 // =========================
+char cmdBuf[16];
+int cmdBufIdx = 0;
+
 void handleSerialCommand() {
-  if (Serial.available()) {
-    String cmd = Serial.readStringUntil('\n');
-    cmd.trim();
-    if (cmd == "WHO") {
-      Serial.println("ID:" + String(DEVICE_ID));
+  while (Serial.available()) {
+    char c = Serial.read();
+    if (c == '\n' || c == '\r') {
+      if (cmdBufIdx > 0) {
+        cmdBuf[cmdBufIdx] = '\0';
+        if (strcmp(cmdBuf, "WHO") == 0) {
+          Serial.println("ID:" + String(DEVICE_ID));
+        }
+        cmdBufIdx = 0;
+      }
+    } else if (cmdBufIdx < 15) {
+      cmdBuf[cmdBufIdx++] = c;
     }
   }
 }

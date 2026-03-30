@@ -258,6 +258,41 @@ bool readSensor(Adafruit_VL53L0X &lox, int &outRaw) {
 }
 
 // --------------------------------------------------
+// Serial command handler (WHO + single-char, non-blocking)
+// --------------------------------------------------
+char cmdBuf[16];
+int cmdBufIdx = 0;
+
+void handleSerialCommand() {
+  while (Serial.available()) {
+    char c = Serial.read();
+    if (c == '\n' || c == '\r') {
+      if (cmdBufIdx > 0) {
+        cmdBuf[cmdBufIdx] = '\0';
+        if (strcmp(cmdBuf, "WHO") == 0) {
+          Serial.println("ID:" + String(DEVICE_ID));
+        } else if (cmdBufIdx == 1) {
+          // Single-char commands (backward compatible)
+          if (cmdBuf[0] == 'c') {
+            startCalibration();
+          } else if (cmdBuf[0] == 'r') {
+            resetFilters();
+            Serial.println("/status filters_reset");
+          } else if (cmdBuf[0] == 'v') {
+            velEnabled = !velEnabled;
+            Serial.print("/status velocity_");
+            Serial.println(velEnabled ? "on" : "off");
+          }
+        }
+        cmdBufIdx = 0;
+      }
+    } else if (cmdBufIdx < 15) {
+      cmdBuf[cmdBufIdx++] = c;
+    }
+  }
+}
+
+// --------------------------------------------------
 // Setup
 // --------------------------------------------------
 void setup() {
@@ -313,32 +348,8 @@ void loop() {
     digitalWrite(STATUS_LED, LOW);  // 運行中常滅
   }
 
-  // === Serial 指令 ===
-  if (Serial.available()) {
-    String cmdStr = Serial.readStringUntil('\n');
-    cmdStr.trim();
-    if (cmdStr == "WHO") {
-      Serial.println("ID:" + String(DEVICE_ID));
-      return;
-    }
-    // Single-char commands (backward compatible)
-    if (cmdStr.length() == 1) {
-      char cmd = cmdStr.charAt(0);
-      if (cmd == 'c') {
-        startCalibration();
-        return;
-      } else if (cmd == 'r') {
-        resetFilters();
-        Serial.println("/status filters_reset");
-        return;
-      } else if (cmd == 'v') {
-        velEnabled = !velEnabled;
-        Serial.print("/status velocity_");
-        Serial.println(velEnabled ? "on" : "off");
-        return;
-      }
-    }
-  }
+  // === Serial 指令 (non-blocking) ===
+  handleSerialCommand();
 
   // === 讀取感測器 ===
   int rawX, rawY;
